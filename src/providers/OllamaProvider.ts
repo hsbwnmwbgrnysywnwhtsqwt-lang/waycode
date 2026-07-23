@@ -51,14 +51,25 @@ export class OllamaProvider implements AIProvider {
 
     const data: any = await res.json();
     const msg = data.message ?? {};
-    const toolCalls: ToolCall[] = (msg.tool_calls ?? []).map((tc: any, i: number) => ({
+    let text: string = msg.content ?? "";
+    let toolCalls: ToolCall[] = (msg.tool_calls ?? []).map((tc: any, i: number) => ({
       id: `ollama-${Date.now()}-${i}`,
       name: tc.function?.name,
-      input: tc.function?.arguments ?? {},
+      input: normalizeArgs(tc.function?.arguments),
     }));
 
+    // Fallback: many local models (incl. qwen2.5-coder) emit tool calls as JSON
+    // text in `content` instead of the structured `tool_calls` field. Recover them.
+    if (!toolCalls.length && text.trim()) {
+      const extracted = extractToolCallsFromText(text);
+      if (extracted.calls.length) {
+        toolCalls = extracted.calls;
+        text = extracted.remainder;
+      }
+    }
+
     return {
-      text: msg.content ?? "",
+      text,
       toolCalls,
       stopReason: toolCalls.length ? "tool_use" : "end",
       usage: {
@@ -68,6 +79,7 @@ export class OllamaProvider implements AIProvider {
     };
   }
 
+  // (message conversion below)
   private toOllamaMessages(system: string, messages: ChatMessage[]): any[] {
     const out: any[] = [{ role: "system", content: system }];
     for (const m of messages) {
@@ -89,4 +101,70 @@ export class OllamaProvider implements AIProvider {
     }
     return out;
   }
+}
+
+/** Ollama's native tool_calls sometimes carry arguments as a JSON string. */
+function normalizeArgs(args: unknown): Record<string, unknown> {
+  if (args && typeof args === "object") return args as Record<string, unknown>;
+  if (typeof args === "string") {
+    const parsed = tryParseJson(args);
+    if (parsed && typeof parsed === "object") return parsed as Record<string, unknown>;
+  }
+  return {};
+}
+
+function tryParseJson(s: string): unknown {
+  try {
+    return JSON.parse(s.trim());
+  } catch {
+    return undefined;
+  }
+}
+
+function looksLikeCall(o: any): boolean {
+  return o && typeof o === "object" && typeof o.name === "string" && ("arguments" in o || "parameters" in o);
+}
+
+function makeCall(o: any, i: number): ToolCall {
+  const rawArgs = o.arguments ?? o.parameters ?? {};
+  return { id: `ollama-${Date.now()}-${i}`, name: o.name, input: normalizeArgs(rawArgs) };
+}
+
+/**
+ * Recover tool calls that a local model emitted as text instead of using the
+ * structured field. Handles: <tool_call>{…}</tool_call> tags (qwen native),
+ * ```json fenced blocks, and a bare JSON object/array that is the whole content.
+ */
+function extractToolCallsFromText(text: string): { calls: ToolCall[]; remainder: string } {
+  const calls: ToolCall[] = [];
+  let i = 0;
+
+  // 1) <tool_call>…</tool_call> blocks
+  const tagRe = /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/g;
+  let m: RegExpExecArray | null;
+  while ((m = tagRe.exec(text)) !== null) {
+    const obj = tryParseJson(m[1]);
+    if (looksLikeCall(obj)) calls.push(makeCall(obj, i++));
+  }
+  if (calls.length) return { calls, remainder: text.replace(tagRe, "").trim() };
+
+  // 2) ```json fenced blocks
+  const fenceRe = /```(?:json|tool_call)?\s*([\s\S]*?)```/g;
+  while ((m = fenceRe.exec(text)) !== null) {
+    const obj = tryParseJson(m[1]);
+    if (looksLikeCall(obj)) calls.push(makeCall(obj, i++));
+    else if (Array.isArray(obj)) for (const o of obj) if (looksLikeCall(o)) calls.push(makeCall(o, i++));
+  }
+  if (calls.length) return { calls, remainder: text.replace(fenceRe, "").trim() };
+
+  // 3) The whole content is a JSON object or array of calls
+  const whole = tryParseJson(text);
+  if (Array.isArray(whole)) {
+    for (const o of whole) if (looksLikeCall(o)) calls.push(makeCall(o, i++));
+  } else if (looksLikeCall(whole)) {
+    calls.push(makeCall(whole, i++));
+  }
+  if (calls.length) return { calls, remainder: "" };
+
+  return { calls, remainder: text };
 }
