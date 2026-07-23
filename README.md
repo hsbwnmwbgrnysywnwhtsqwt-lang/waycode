@@ -1,0 +1,150 @@
+# WayCode
+
+**WayCode** is a professional AI coding agent for Visual Studio Code — a senior-engineer-style assistant in the spirit of Claude Code / Cursor / Codex. It understands natural language (including **Hebrew**), reads and reasons about whole projects, writes and edits code, runs tests, and fixes its own mistakes.
+
+> Status: **v0.1 MVP** — a working, extensible foundation. Architected to grow into a real product.
+
+---
+
+## ✨ Features
+
+- **Chat sidebar** inside VS Code with a modern, theme-aware UI.
+- **Command Palette** integration (`WayCode: …`).
+- **Agent engine** that plans → acts → verifies → fixes in a loop.
+- **Multi-agent pipeline (role-based)** — an optional mode where a **communicator bot** (strong at your language, e.g. Hebrew) understands you and explains results, while a separate **coder bot** (strong at code, e.g. Qwen Coder) does the engineering. Each role runs on its own provider/model.
+- **Pluggable AI providers** — switch between **Anthropic (Claude)**, **OpenAI (GPT)**, **Google (Gemini)**, and **local models via Ollama** with one command.
+- **Tool system** — read/create/edit files, search code, run the terminal, git, tests, linters, and an error analyzer.
+- **Change previews & approval** — every write/command is shown as a diff or command and requires your approval before it runs.
+- **Memory & context** — remembers project structure, pinned files, decisions, and preferences per workspace.
+
+---
+
+## 🏗 Architecture
+
+```
+src/
+├── extension.ts            # Activation, commands, wiring
+├── config.ts               # Settings + secret API-key storage
+├── providers/              # AI backends behind one interface
+│   ├── types.ts            #   neutral request/response/tool types
+│   ├── AnthropicProvider.ts
+│   ├── OpenAIProvider.ts
+│   ├── GeminiProvider.ts
+│   ├── OllamaProvider.ts
+│   └── ProviderFactory.ts  #   createProvider(id, creds) — swap models here
+├── tools/                  # Every agent capability is a Tool
+│   ├── Tool.ts             #   Tool interface + approval/preview types
+│   ├── FileTools.ts        #   read / create / write / edit / list
+│   ├── CommandTools.ts     #   terminal / git / tests / linter
+│   ├── SearchTools.ts      #   code search + error analyzer
+│   ├── diff.ts             #   diff preview generator
+│   └── ToolRegistry.ts     #   the set exposed to the model
+├── context/ProjectContext.ts  # Builds a compact project snapshot
+├── memory/Memory.ts           # Persistent per-workspace memory
+├── agent/
+│   ├── Agent.ts            # plan → act → verify → fix loop (the coder bot)
+│   ├── Orchestrator.ts     # multi-agent pipeline (communicator ↔ coder)
+│   └── prompts.ts          # senior-engineer + communicator prompts
+└── ui/ChatViewProvider.ts  # Webview host (bridges UI ↔ Agent)
+
+media/                      # Webview assets (vanilla JS/CSS, CSP-safe)
+```
+
+**Design principle:** everything is behind an interface. The agent depends only on `AIProvider` and `Tool`, so adding a model or a capability never touches the core loop.
+
+---
+
+## 🚀 Getting started
+
+### Prerequisites
+- VS Code ≥ 1.85
+- Node.js ≥ 18
+
+### Run in development
+```bash
+npm install
+npm run compile        # or: npm run watch
+```
+Then press **F5** in VS Code ("Run WayCode Extension") to open an Extension Development Host.
+
+### Configure a model
+1. `Cmd/Ctrl+Shift+P` → **WayCode: Set API Key** → pick a provider and paste your key
+   (stored securely in VS Code Secret Storage; Ollama needs no key).
+2. **WayCode: Select Model / Provider** → choose provider + model id.
+3. Open the **WayCode** icon in the Activity Bar and start chatting.
+
+### Default models
+| Provider  | Default model            | Key required |
+|-----------|--------------------------|--------------|
+| Anthropic | `claude-sonnet-4-5`      | ✅           |
+| OpenAI    | `gpt-4o`                 | ✅           |
+| Gemini    | `gemini-2.0-flash`       | ✅           |
+| Ollama    | `llama3.1` (local)       | ❌           |
+
+---
+
+## ⚙️ Settings
+
+| Setting | Description | Default |
+|---|---|---|
+| `waycode.provider` | Active provider | `anthropic` |
+| `waycode.model` | Model id | `claude-sonnet-4-5` |
+| `waycode.ollama.baseUrl` | Ollama server URL | `http://localhost:11434` |
+| `waycode.maxAgentSteps` | Max tool iterations per task | `25` |
+| `waycode.autoApproveReads` | Auto-approve read-only tools | `true` |
+
+> Writes, edits, terminal, git, tests, and linters **always** require explicit approval.
+
+---
+
+## 🤖 Multi-agent pipeline (role-based)
+
+Turn it on with **WayCode: Configure Agent Roles**. You pick a model for each role:
+
+```
+   user (Hebrew / any language)
+        │
+        ▼
+  ┌─────────────────────┐   Communicator bot
+  │ understands intent, │   → strong at language (e.g. Claude / Gemini)
+  │ writes a task spec  │
+  └─────────────────────┘
+        │  precise English task spec
+        ▼
+  ┌─────────────────────┐   Coder bot
+  │ writes / edits code │   → strong at code (e.g. qwen2.5-coder via Ollama)
+  │ runs & fixes (loop) │      need not speak your language
+  └─────────────────────┘
+        │  code + verification (lint / tests)
+        ▼
+  ┌─────────────────────┐   Communicator bot
+  │ explains the result │   → back in your language
+  └─────────────────────┘
+```
+
+Why: the language-strong model talks to you, while a code-strong (and often cheaper/faster) model does the engineering — no single model has to be great at everything. When multi-agent is **off**, one agent handles the whole task.
+
+Relevant settings: `waycode.multiAgent.enabled`, `waycode.roles.communicator.{provider,model}`, `waycode.roles.coder.{provider,model}`.
+
+## 🧠 How the agent works
+1. **Understand** — reads relevant files; never edits unread code.
+2. **Plan** — states a short step-by-step plan for non-trivial tasks.
+3. **Act** — uses tools to search, create, and edit code and run commands.
+4. **Verify** — runs the build/tests/linter after changes.
+5. **Fix** — analyzes failures and iterates until green (or reports a real blocker).
+
+---
+
+## 🗺 Roadmap
+- Streaming responses token-by-token
+- React-based webview with rich markdown/code rendering
+- Multi-file atomic apply with a review panel
+- Semantic project indexing / embeddings retrieval
+- Inline (editor) code actions and quick fixes
+- Test-generation and coverage-aware fixing
+- More providers (Azure OpenAI, Mistral, Groq)
+
+---
+
+## 📄 License
+MIT

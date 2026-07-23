@@ -1,0 +1,166 @@
+{
+  "name": "waycode",
+  "displayName": "WayCode",
+  "description": "Professional AI coding agent for VS Code — understands natural language (including Hebrew), whole projects, writes and edits code, runs tests, and fixes itself.",
+  "version": "0.1.0",
+  "publisher": "waycode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "AI",
+    "Machine Learning",
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "ai",
+    "agent",
+    "copilot",
+    "assistant",
+    "openai",
+    "anthropic",
+    "gemini",
+    "ollama"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "waycode",
+          "title": "WayCode",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "waycode": [
+        {
+          "type": "webview",
+          "id": "waycode.chatView",
+          "name": "Chat"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "waycode.openChat",
+        "title": "WayCode: Open Chat",
+        "category": "WayCode"
+      },
+      {
+        "command": "waycode.newTask",
+        "title": "WayCode: New Task",
+        "category": "WayCode"
+      },
+      {
+        "command": "waycode.addFileToContext",
+        "title": "WayCode: Add File to Context",
+        "category": "WayCode"
+      },
+      {
+        "command": "waycode.selectModel",
+        "title": "WayCode: Select Model / Provider",
+        "category": "WayCode"
+      },
+      {
+        "command": "waycode.setApiKey",
+        "title": "WayCode: Set API Key",
+        "category": "WayCode"
+      },
+      {
+        "command": "waycode.configureRoles",
+        "title": "WayCode: Configure Agent Roles (Communicator / Coder)",
+        "category": "WayCode"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "waycode.addFileToContext",
+          "group": "waycode"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "WayCode",
+      "properties": {
+        "waycode.provider": {
+          "type": "string",
+          "enum": [
+            "anthropic",
+            "openai",
+            "gemini",
+            "ollama"
+          ],
+          "default": "anthropic",
+          "description": "Active AI provider."
+        },
+        "waycode.model": {
+          "type": "string",
+          "default": "claude-sonnet-4-5",
+          "description": "Model id for the active provider (e.g. claude-sonnet-4-5, gpt-4o, gemini-2.0-flash, llama3.1)."
+        },
+        "waycode.ollama.baseUrl": {
+          "type": "string",
+          "default": "http://localhost:11434",
+          "description": "Base URL for a local Ollama server."
+        },
+        "waycode.maxAgentSteps": {
+          "type": "number",
+          "default": 25,
+          "description": "Maximum number of tool-use iterations the agent may take for a single task."
+        },
+        "waycode.autoApproveReads": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically approve read-only tools (reading/listing files). Write and terminal actions always require confirmation."
+        },
+        "waycode.multiAgent.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable the multi-agent pipeline: a language/communication bot understands you (e.g. in Hebrew) and explains results, while a separate coder bot writes the code. When off, a single agent handles everything."
+        },
+        "waycode.roles.communicator.provider": {
+          "type": "string",
+          "enum": ["", "anthropic", "openai", "gemini", "ollama"],
+          "enumDescriptions": ["Use the default provider (waycode.provider)", "Anthropic", "OpenAI", "Gemini", "Ollama"],
+          "default": "",
+          "description": "Provider for the COMMUNICATOR role (understands the user and explains results). Empty = use waycode.provider."
+        },
+        "waycode.roles.communicator.model": {
+          "type": "string",
+          "default": "",
+          "description": "Model id for the communicator role. Empty = the provider's default model. Pick a model strong at natural language (e.g. Hebrew)."
+        },
+        "waycode.roles.coder.provider": {
+          "type": "string",
+          "enum": ["", "anthropic", "openai", "gemini", "ollama"],
+          "enumDescriptions": ["Use the default provider (waycode.provider)", "Anthropic", "OpenAI", "Gemini", "Ollama"],
+          "default": "",
+          "description": "Provider for the CODER role (writes/edits code). Empty = use waycode.provider."
+        },
+        "waycode.roles.coder.model": {
+          "type": "string",
+          "default": "",
+          "description": "Model id for the coder role. Empty = the provider's default model. Pick a model strong at code (e.g. qwen2.5-coder), it need not speak your language."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "typecheck": "tsc --noEmit -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  }
+}

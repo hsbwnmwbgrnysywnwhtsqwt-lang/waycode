@@ -1,0 +1,201 @@
+:root {
+  --gap: 10px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+  background: var(--vscode-sideBar-background);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.status {
+  padding: 6px 10px;
+  font-size: 11px;
+  opacity: 0.7;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--gap);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.msg {
+  padding: 8px 10px;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.45;
+}
+
+.msg.user {
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  align-self: flex-end;
+  max-width: 90%;
+}
+
+.msg.assistant {
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-panel-border);
+}
+
+.msg.error {
+  background: var(--vscode-inputValidation-errorBackground, #5a1d1d);
+  border: 1px solid var(--vscode-inputValidation-errorBorder, #be1100);
+}
+
+.log {
+  font-size: 11px;
+  opacity: 0.75;
+  padding: 2px 10px;
+}
+
+.phase {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+  padding: 6px 10px;
+  margin: 4px 0;
+  border-left: 3px solid var(--vscode-focusBorder);
+  background: var(--vscode-editorWidget-background);
+  border-radius: 0 6px 6px 0;
+}
+
+.tool {
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 6px;
+  overflow: hidden;
+  font-size: 12px;
+}
+
+.tool-head {
+  padding: 5px 8px;
+  background: var(--vscode-editorWidget-background);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tool-head .name {
+  font-weight: 600;
+}
+
+.tool-body {
+  padding: 8px;
+  border-top: 1px solid var(--vscode-panel-border);
+  font-family: var(--vscode-editor-font-family, monospace);
+  white-space: pre-wrap;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.tool.error .tool-head {
+  color: var(--vscode-errorForeground);
+}
+
+.diff-add {
+  color: var(--vscode-gitDecoration-addedResourceForeground, #4caf50);
+}
+
+.diff-del {
+  color: var(--vscode-gitDecoration-deletedResourceForeground, #f44336);
+}
+
+.approval {
+  border: 1px solid var(--vscode-focusBorder);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--vscode-editorWidget-background);
+}
+
+.approval .title {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.approval pre {
+  margin: 6px 0;
+  padding: 8px;
+  background: var(--vscode-textCodeBlock-background);
+  border-radius: 6px;
+  overflow: auto;
+  max-height: 240px;
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+.approval-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.composer {
+  border-top: 1px solid var(--vscode-panel-border);
+  padding: var(--gap);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+textarea {
+  width: 100%;
+  resize: vertical;
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.composer-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+button {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 6px 12px;
+  border: 1px solid var(--vscode-button-border, transparent);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--vscode-button-secondaryForeground);
+  background: var(--vscode-button-secondaryBackground);
+}
+
+button.primary {
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+.hidden {
+  display: none !important;
+}
