@@ -157,14 +157,55 @@ function extractToolCallsFromText(text: string): { calls: ToolCall[]; remainder:
   }
   if (calls.length) return { calls, remainder: text.replace(fenceRe, "").trim() };
 
-  // 3) The whole content is a JSON object or array of calls
-  const whole = tryParseJson(text);
-  if (Array.isArray(whole)) {
-    for (const o of whole) if (looksLikeCall(o)) calls.push(makeCall(o, i++));
-  } else if (looksLikeCall(whole)) {
-    calls.push(makeCall(whole, i++));
+  // 3) Balanced JSON object(s) anywhere in the text — handles models that wrap
+  //    the tool call in explanatory prose (e.g. "…let's proceed. {…}").
+  let remainder = text;
+  for (const raw of findBalancedJsonObjects(text)) {
+    const obj = tryParseJson(raw);
+    if (looksLikeCall(obj)) {
+      calls.push(makeCall(obj, i++));
+      remainder = remainder.split(raw).join("");
+    } else if (Array.isArray(obj)) {
+      let matched = false;
+      for (const o of obj) if (looksLikeCall(o)) { calls.push(makeCall(o, i++)); matched = true; }
+      if (matched) remainder = remainder.split(raw).join("");
+    }
   }
-  if (calls.length) return { calls, remainder: "" };
+  if (calls.length) return { calls, remainder: remainder.trim() };
 
   return { calls, remainder: text };
+}
+
+/**
+ * Scan text for top-level balanced `{ … }` substrings, respecting string
+ * literals and escapes, so we can find a JSON object embedded in prose.
+ */
+function findBalancedJsonObjects(text: string): string[] {
+  const objects: string[] = [];
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] !== "{") continue;
+    let depth = 0;
+    let inStr = false;
+    let esc = false;
+    for (let j = i; j < text.length; j++) {
+      const ch = text[j];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (ch === "\\") esc = true;
+        else if (ch === '"') inStr = false;
+      } else if (ch === '"') {
+        inStr = true;
+      } else if (ch === "{") {
+        depth++;
+      } else if (ch === "}") {
+        depth--;
+        if (depth === 0) {
+          objects.push(text.slice(i, j + 1));
+          i = j;
+          break;
+        }
+      }
+    }
+  }
+  return objects;
 }
