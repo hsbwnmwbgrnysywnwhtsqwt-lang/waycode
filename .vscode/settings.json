@@ -1,0 +1,11 @@
+{
+  "// WayCode": "Local multi-agent setup: gemma2 talks (Hebrew), qwen codes. All local, no API keys.",
+  "waycode.provider": "ollama",
+  "waycode.model": "qwen2.5-coder:7b",
+  "waycode.ollama.baseUrl": "http://localhost:11434",
+  "waycode.multiAgent.enabled": true,
+  "waycode.roles.communicator.provider": "ollama",
+  "waycode.roles.communicator.model": "gemma2:9b",
+  "waycode.roles.coder.provider": "ollama",
+  "waycode.roles.coder.model": "qwen2.5-coder:7b"
+}
