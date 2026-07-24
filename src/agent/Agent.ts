@@ -65,6 +65,8 @@ export class Agent {
   async run(userMessage: string, events: AgentEvents): Promise<string> {
     this.cancelled = false;
     let finalText = "";
+    let inputTokens = 0;
+    let outputTokens = 0;
     const summary = await this.project.summarize();
     const system = buildSystemPrompt(summary, this.memory.render());
 
@@ -91,6 +93,9 @@ export class Agent {
           maxTokens: 4096,
           temperature: 0,
         });
+
+        inputTokens += response.usage?.inputTokens ?? 0;
+        outputTokens += response.usage?.outputTokens ?? 0;
 
         if (response.text.trim()) {
           finalText = response.text;
@@ -119,6 +124,9 @@ export class Agent {
         }
 
         this.history.push({ role: "tool", toolResults: results });
+      }
+      if (inputTokens || outputTokens) {
+        events.onLog(`📊 Tokens — ${inputTokens} in / ${outputTokens} out`);
       }
       events.onDone();
     } catch (err) {
