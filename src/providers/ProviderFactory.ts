@@ -3,14 +3,16 @@ import { AnthropicProvider } from "./AnthropicProvider";
 import { OpenAIProvider } from "./OpenAIProvider";
 import { GeminiProvider } from "./GeminiProvider";
 import { OllamaProvider } from "./OllamaProvider";
+import { ClaudeCliProvider } from "./ClaudeCliProvider";
 
-export type ProviderId = "anthropic" | "openai" | "gemini" | "ollama";
+export type ProviderId = "anthropic" | "openai" | "gemini" | "ollama" | "claude-cli";
 
 export const PROVIDER_META: Record<ProviderId, { label: string; requiresApiKey: boolean; defaultModel: string }> = {
   anthropic: { label: "Anthropic (Claude)", requiresApiKey: true, defaultModel: "claude-sonnet-4-5" },
   openai: { label: "OpenAI (GPT)", requiresApiKey: true, defaultModel: "gpt-4o" },
   gemini: { label: "Google (Gemini)", requiresApiKey: true, defaultModel: "gemini-2.0-flash" },
   ollama: { label: "Ollama (local)", requiresApiKey: false, defaultModel: "llama3.1" },
+  "claude-cli": { label: "Claude Code (CLI, no key)", requiresApiKey: false, defaultModel: "sonnet" },
 };
 
 /**
@@ -28,6 +30,8 @@ export function createProvider(id: ProviderId, creds: ProviderCredentials): AIPr
       return new GeminiProvider(creds);
     case "ollama":
       return new OllamaProvider(creds);
+    case "claude-cli":
+      return new ClaudeCliProvider(creds);
     default:
       throw new Error(`Unknown provider: ${id}`);
   }

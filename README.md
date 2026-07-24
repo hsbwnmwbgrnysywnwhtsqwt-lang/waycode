@@ -86,6 +86,13 @@ dependencies — and in CI (GitHub Actions) on Node 18 and 20.
 | OpenAI    | `gpt-4o`                 | ✅           |
 | Gemini    | `gemini-2.0-flash`       | ✅           |
 | Ollama    | `llama3.1` (local)       | ❌           |
+| Claude Code (CLI) | `sonnet`         | ❌ (uses your Claude subscription) |
+
+**Claude Code CLI provider (no API key):** if you have the `claude` CLI installed
+and signed in, pick provider **`claude-cli`** to use Claude through your existing
+subscription — no key needed. It's a text backend (no WayCode tool-calling), so it
+shines as the **communicator** role: pair Claude (excellent Hebrew, free via your
+subscription) as the language bot with a local Ollama model as the coder.
 
 ---
 

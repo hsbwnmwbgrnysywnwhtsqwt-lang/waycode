@@ -116,7 +116,15 @@
             "anthropic",
             "openai",
             "gemini",
-            "ollama"
+            "ollama",
+            "claude-cli"
+          ],
+          "enumDescriptions": [
+            "Anthropic API (key)",
+            "OpenAI API (key)",
+            "Google Gemini API (key)",
+            "Local Ollama (no key)",
+            "Claude Code CLI — uses your Claude subscription, no key"
           ],
           "default": "anthropic",
           "description": "Active AI provider."
@@ -169,8 +177,8 @@
         },
         "waycode.roles.communicator.provider": {
           "type": "string",
-          "enum": ["", "anthropic", "openai", "gemini", "ollama"],
-          "enumDescriptions": ["Use the default provider (waycode.provider)", "Anthropic", "OpenAI", "Gemini", "Ollama"],
+          "enum": ["", "anthropic", "openai", "gemini", "ollama", "claude-cli"],
+          "enumDescriptions": ["Use the default provider (waycode.provider)", "Anthropic", "OpenAI", "Gemini", "Ollama", "Claude Code CLI (no key)"],
           "default": "",
           "description": "Provider for the COMMUNICATOR role (understands the user and explains results). Empty = use waycode.provider."
         },
@@ -181,8 +189,8 @@
         },
         "waycode.roles.coder.provider": {
           "type": "string",
-          "enum": ["", "anthropic", "openai", "gemini", "ollama"],
-          "enumDescriptions": ["Use the default provider (waycode.provider)", "Anthropic", "OpenAI", "Gemini", "Ollama"],
+          "enum": ["", "anthropic", "openai", "gemini", "ollama", "claude-cli"],
+          "enumDescriptions": ["Use the default provider (waycode.provider)", "Anthropic", "OpenAI", "Gemini", "Ollama", "Claude Code CLI (no key)"],
           "default": "",
           "description": "Provider for the CODER role (writes/edits code). Empty = use waycode.provider."
         },

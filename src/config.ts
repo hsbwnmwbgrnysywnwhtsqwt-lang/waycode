@@ -141,6 +141,10 @@ export class Config {
     if (id === "openai" && this.openaiBaseUrl) {
       creds.baseUrl = this.openaiBaseUrl;
     }
+    if (id === "claude-cli") {
+      const folder = vscode.workspace.workspaceFolders?.[0];
+      if (folder) creds.baseUrl = folder.uri.fsPath;
+    }
     return creds;
   }
 }
