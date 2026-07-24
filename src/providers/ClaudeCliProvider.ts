@@ -24,7 +24,9 @@ export class ClaudeCliProvider implements AIProvider {
   readonly label = "Claude Code (CLI, no key)";
   readonly requiresApiKey = false;
 
-  constructor(private readonly creds: ProviderCredentials) {}
+  // Credentials are accepted for interface parity but not needed: the CLI
+  // authenticates via the user's existing Claude Code session.
+  constructor(_creds: ProviderCredentials) {}
 
   async complete(req: CompletionRequest): Promise<CompletionResponse> {
     const prompt = this.renderConversation(req.messages);
@@ -58,13 +60,22 @@ export class ClaudeCliProvider implements AIProvider {
     );
     await fs.writeFile(sysFile, system, "utf8");
 
-    const args = ["-p", "--output-format", "json", "--system-prompt-file", sysFile];
+    // Keep the CLI fast and non-agentic for use as a text backend:
+    // --strict-mcp-config (no --mcp-config) disables ALL external MCP servers
+    //   (e.g. Gmail/Calendar/Drive), which otherwise stall startup.
+    // --disable-slash-commands skips skill loading. OAuth/subscription auth is
+    //   kept (we deliberately avoid --bare, which would require an API key).
+    const args = [
+      "-p",
+      "--output-format",
+      "json",
+      "--strict-mcp-config",
+      "--disable-slash-commands",
+      "--system-prompt-file",
+      sysFile,
+    ];
     if (model && model !== "default") {
       args.push("--model", model);
-    }
-    if (this.creds.baseUrl) {
-      // Optional: run the CLI with the workspace as an allowed dir for context.
-      args.push("--add-dir", this.creds.baseUrl);
     }
 
     try {
@@ -72,7 +83,11 @@ export class ClaudeCliProvider implements AIProvider {
         const child = spawn("claude", args, { stdio: ["pipe", "pipe", "pipe"] });
         let out = "";
         let err = "";
-        const timer = setTimeout(() => child.kill("SIGTERM"), 300_000);
+        let timedOut = false;
+        const timer = setTimeout(() => {
+          timedOut = true;
+          child.kill("SIGTERM");
+        }, 120_000);
 
         child.stdout.on("data", (d) => (out += d.toString()));
         child.stderr.on("data", (d) => (err += d.toString()));
@@ -86,6 +101,14 @@ export class ClaudeCliProvider implements AIProvider {
         });
         child.on("close", (code) => {
           clearTimeout(timer);
+          if (timedOut) {
+            reject(
+              new Error(
+                "Claude CLI timed out (120s). Make sure 'claude' is signed in (run it once in a terminal), or switch the communicator to a faster model like gemma2:9b."
+              )
+            );
+            return;
+          }
           if (code !== 0 && !out.trim()) {
             reject(new Error(`Claude CLI exited with code ${code}: ${err.trim() || "(no output)"}`));
             return;
