@@ -1,4 +1,4 @@
-import { AIProvider } from "../providers/types";
+import { AIProvider, ToolCall } from "../providers/types";
 import { ToolRegistry } from "../tools/ToolRegistry";
 import { ProjectContext } from "../context/ProjectContext";
 import { Memory } from "../memory/Memory";
@@ -79,7 +79,10 @@ export class Orchestrator {
 
       // ---- Phase 2: coder does the engineering -----------------------------
       events.onPhase?.("coder", "👨‍💻 Coder bot is working on the code…");
-      const coderEvents = this.wrapForCoder(events);
+      // Record the coder's ACTUAL tool actions — the ground truth we give the
+      // communicator so it cannot fabricate changes that never happened.
+      const actions: string[] = [];
+      const coderEvents = this.wrapForCoder(events, actions);
       // Reuse one coder across turns so follow-up requests keep prior context.
       if (!this.currentCoder) {
         this.currentCoder = new Agent(
@@ -91,10 +94,24 @@ export class Orchestrator {
           this.workspaceRoot
         );
       }
-      const coderSummary = await this.currentCoder.run(spec, coderEvents);
+      let coderSummary = await this.currentCoder.run(spec, coderEvents);
+
+      // If the coder stalled (produced a plan but ran no tools), nudge it once
+      // to actually act instead of asking the user to confirm.
+      if (actions.length === 0) {
+        events.onLog("↻ Coder ran no tools — nudging it to act.");
+        coderSummary = await this.currentCoder.run(
+          "You did not use any tools, so nothing was done. Do the task NOW by calling the tools (search/read/edit/create/run). Do not ask for confirmation and do not just describe a plan.",
+          coderEvents
+        );
+      }
 
       // ---- Phase 3: communicator explains the result -----------------------
       events.onPhase?.("communicator-out", "🗣️ Language bot is preparing the explanation…");
+      const changed = actions.some((a) => a.startsWith("changed:"));
+      const groundTruth = actions.length
+        ? actions.join("\n")
+        : "(NO tools were run and NO changes were made.)";
       const explainResponse = await this.communicator.provider.complete({
         system: buildCommunicatorOutPrompt(this.config.language),
         messages: [
@@ -102,12 +119,16 @@ export class Orchestrator {
             role: "user",
             content:
               `The user's original request was:\n${userMessage}\n\n` +
-              `The coding agent reported:\n${coderSummary || "(the coder produced no summary; it may have failed — explain honestly)"}`,
+              `GROUND TRUTH — tools the coder actually ran and their results:\n${groundTruth}\n\n` +
+              `Files were ${changed ? "" : "NOT "}modified.\n\n` +
+              `The coder's own notes (may be optimistic — trust the ground truth over this):\n${
+                coderSummary || "(none)"
+              }`,
           },
         ],
         tools: [],
         model: this.communicator.model,
-        temperature: 0.3,
+        temperature: 0.2,
         maxTokens: 1500,
       });
       events.onAssistantText(explainResponse.text.trim() || coderSummary || "Done.");
@@ -123,12 +144,20 @@ export class Orchestrator {
    * it to the "thinking" channel; the user-facing answer comes from the
    * communicator. Swallow the coder's onDone so the pipeline controls completion.
    */
-  private wrapForCoder(events: AgentEvents): AgentEvents {
+  private wrapForCoder(events: AgentEvents, actions: string[]): AgentEvents {
     return {
       onAssistantText: (t) => events.onThinking(`👨‍💻 ${t}`),
       onThinking: (t) => events.onThinking(t),
       onToolStart: (c) => events.onToolStart(c),
-      onToolEnd: (c, r, p) => events.onToolEnd(c, r, p),
+      onToolEnd: (c, r, p) => {
+        // Record the ground-truth action with a truthful prefix.
+        let prefix = "read";
+        if (WRITE_TOOLS.has(c.name)) prefix = r.isError ? "attempted-change" : "changed";
+        else if (COMMAND_TOOLS.has(c.name)) prefix = "ran";
+        const status = r.isError ? `ERROR: ${oneLine(r.content)}` : "ok";
+        actions.push(`${prefix}: ${c.name} ${summarizeCall(c)} → ${status}`);
+        events.onToolEnd(c, r, p);
+      },
       onLog: (m) => events.onLog(m),
       requestApproval: (p) => events.requestApproval(p),
       onError: (m) => events.onError(m),
@@ -137,4 +166,21 @@ export class Orchestrator {
       },
     };
   }
+}
+
+const WRITE_TOOLS = new Set(["create_file", "write_file", "edit_file"]);
+const COMMAND_TOOLS = new Set(["run_terminal", "run_tests", "run_linter", "git"]);
+
+/** A short human-readable summary of what a tool call targeted. */
+function summarizeCall(c: ToolCall): string {
+  const i = (c.input || {}) as Record<string, unknown>;
+  if (i.command) return String(i.command);
+  if (i.args) return `git ${i.args}`;
+  if (i.path) return String(i.path);
+  if (i.pattern) return `/${i.pattern}/`;
+  return "";
+}
+
+function oneLine(s: string): string {
+  return (s || "").replace(/\s+/g, " ").slice(0, 200);
 }

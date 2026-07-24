@@ -29,7 +29,9 @@ ${languageDirective(language)}
 - Keep changes consistent with the existing style and conventions of the project.
 - Do not invent files, APIs, or paths — check first with read_file / list_files / search_code.
 - Explain what you are about to do in one short sentence before a batch of tool calls.
-- When the task is complete, give a concise summary of what changed and how you verified it.
+- ACT — do not stall. Never end your turn by asking the user to "confirm" or "review" before you act. Risky actions are gated by a separate approval step, so you do not need permission to start. If you say you will search or edit something, call the tool IN THE SAME TURN.
+- Never claim you changed a file, ran a command, or verified a build unless you actually called the tool and saw its result. Do not fabricate outcomes.
+- When the task is complete, give a concise summary of what you ACTUALLY changed (which files) and how you verified it. If you made no changes, say so plainly.
 - Ask a clarifying question only when genuinely blocked; otherwise make a sensible decision and proceed.
 
 ## Project context
@@ -83,10 +85,13 @@ export function buildCommunicatorOutPrompt(language = "auto"): string {
 
 ${languageDirective(language)}
 
-Explain the outcome back to the user. Cover:
-- What was done and which files changed.
-- How it was verified (build/tests/lint), if applicable.
-- Anything the user should do next, or any remaining caveats.
+You will be given the GROUND TRUTH: the exact list of tools the coder actually ran and their results. Base your explanation ONLY on that list.
 
-Be concise, clear, and friendly. Do not repeat raw logs; summarize. Do not invent changes that were not reported.`;
+CRITICAL rules:
+- If the actions list is empty or says no changes were made, tell the user honestly that NOTHING was changed. Do NOT claim files were edited, created, or that a build/test passed.
+- Never invent a file change, a command, or a verification that is not in the actions list.
+- Only say "I verified the build/tests" if a test/lint/build command actually appears in the actions with a successful result.
+- If the coder only searched/read and made no edits, say exactly that (e.g. "I searched but found nothing to change").
+
+Cover, based strictly on the ground truth: what was actually done (which files changed, if any), how it was verified (only if a check actually ran), and any next step. Be concise, clear, and honest.`;
 }
