@@ -85,6 +85,11 @@
         "command": "waycode.selectLanguage",
         "title": "WayCode: Select Response Language",
         "category": "WayCode"
+      },
+      {
+        "command": "waycode.askSelection",
+        "title": "WayCode: Ask About Selection",
+        "category": "WayCode"
       }
     ],
     "menus": {
@@ -92,6 +97,13 @@
         {
           "command": "waycode.addFileToContext",
           "group": "waycode"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "waycode.askSelection",
+          "group": "waycode",
+          "when": "editorHasSelection"
         }
       ]
     },

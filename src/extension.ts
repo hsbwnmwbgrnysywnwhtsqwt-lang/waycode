@@ -49,7 +49,25 @@ export function activate(context: vscode.ExtensionContext): void {
 
     vscode.commands.registerCommand("waycode.setApprovalMode", () => setApprovalMode(config, chat)),
 
-    vscode.commands.registerCommand("waycode.selectLanguage", () => selectLanguage(config, chat))
+    vscode.commands.registerCommand("waycode.selectLanguage", () => selectLanguage(config, chat)),
+
+    vscode.commands.registerCommand("waycode.askSelection", async () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor || editor.selection.isEmpty) {
+        vscode.window.showWarningMessage("WayCode: select some code first.");
+        return;
+      }
+      const selection = editor.document.getText(editor.selection);
+      const folder = vscode.workspace.workspaceFolders?.[0];
+      const rel = folder
+        ? toRelative(folder.uri.fsPath, editor.document.uri.fsPath)
+        : editor.document.fileName;
+      const startLine = editor.selection.start.line + 1;
+      const lang = editor.document.languageId;
+      const block = `About \`${rel}:${startLine}\`:\n\n\`\`\`${lang}\n${selection}\n\`\`\`\n\n`;
+      await vscode.commands.executeCommand("waycode.chatView.focus");
+      chat.prefill(block);
+    })
   );
 }
 

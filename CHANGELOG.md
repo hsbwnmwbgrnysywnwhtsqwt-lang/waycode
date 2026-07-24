@@ -5,6 +5,15 @@ All notable changes to WayCode are documented here.
 ## [Unreleased]
 
 ### Added
+- **Ask About Selection** — select code in the editor, right-click → *WayCode: Ask
+  About Selection*, and the chat is pre-filled with that snippet for your question.
+- **Conversation continuity** — follow-up messages keep prior context; the runner
+  is rebuilt only when the model/mode/language/approval/step-limit changes.
+- **Ollama model discovery** — model pickers list installed Ollama models (via
+  `/api/tags`) instead of requiring you to type names.
+- **OpenAI-compatible endpoints** — `waycode.openai.baseUrl` points the OpenAI
+  provider at LM Studio, Groq, Together, Azure, and similar servers.
+- **Copy-code buttons**, a welcome/onboarding card, blockquotes, and rules in chat.
 - **Smart routing** — the communicator bot classifies each message as CHAT
   (answers directly) or CODE (writes a spec for the coder), so plain questions no
   longer make a round-trip through the coder. The route is shown in the chat (🧭).

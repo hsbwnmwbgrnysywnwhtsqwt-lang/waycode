@@ -390,6 +390,11 @@
       case "focusInput":
         inputEl.focus();
         break;
+      case "prefill":
+        inputEl.value = msg.text + (inputEl.value ? "\n" + inputEl.value : "");
+        inputEl.focus();
+        inputEl.scrollIntoView();
+        break;
     }
   });
 

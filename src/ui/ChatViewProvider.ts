@@ -71,6 +71,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.post({ type: "focusInput" });
   }
 
+  /** Pre-fill the composer with text (e.g. a code selection) for the user to extend. */
+  prefill(text: string): void {
+    this.view?.show?.(true);
+    this.post({ type: "prefill", text });
+  }
+
   notify(text: string): void {
     this.post({ type: "log", text });
   }
