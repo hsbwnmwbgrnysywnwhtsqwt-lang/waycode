@@ -103,3 +103,31 @@ test("normalizes stringified arguments from native tool_calls", async () => {
   const res = await provider.complete(baseReq);
   assert.equal(res.toolCalls[0].input.path, "f.txt");
 });
+
+test("builds an Ollama request with a system message and mapped roles", async () => {
+  let captured: any;
+  globalThis.fetch = (async (_url: string, opts: any) => {
+    captured = JSON.parse(opts.body);
+    return { ok: true, json: async () => ({ message: { content: "ok" } }) };
+  }) as unknown as typeof fetch;
+
+  await provider.complete({
+    system: "SYS",
+    messages: [
+      { role: "user", content: "hi" },
+      { role: "assistant", content: "", toolCalls: [{ id: "1", name: "read_file", input: { path: "a" } }] },
+      { role: "tool", toolResults: [{ callId: "1", content: "file body" }] },
+    ],
+    tools: [],
+    model: "m",
+  });
+
+  assert.equal(captured.messages[0].role, "system");
+  assert.equal(captured.messages[0].content, "SYS");
+  assert.equal(captured.messages[1].role, "user");
+  assert.equal(captured.messages[1].content, "hi");
+  assert.equal(captured.messages[2].role, "assistant");
+  assert.ok(Array.isArray(captured.messages[2].tool_calls));
+  assert.equal(captured.messages[3].role, "tool");
+  assert.equal(captured.messages[3].content, "file body");
+});
