@@ -5,6 +5,13 @@ All notable changes to WayCode are documented here.
 ## [Unreleased]
 
 ### Added
+- **Claude Code CLI provider** (`claude-cli`) — use Claude through your existing
+  Claude Code subscription with no API key; ideal as the communicator role.
+- **Grounded explanations** — the communicator reports only the coder's real tool
+  actions and says plainly when nothing changed (fixes fabricated "all done").
+- **Case-insensitive code search** and coaching to search broadly before giving up.
+- **History trimming** so long, persisted conversations don't overflow small
+  local-model context windows.
 - **Ask About Selection** — select code in the editor, right-click → *WayCode: Ask
   About Selection*, and the chat is pre-filled with that snippet for your question.
 - **Conversation continuity** — follow-up messages keep prior context; the runner
