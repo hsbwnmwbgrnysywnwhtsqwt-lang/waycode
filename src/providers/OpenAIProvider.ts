@@ -6,6 +6,7 @@ import {
   ProviderCredentials,
   ToolCall,
 } from "./types";
+import { postJson, readError } from "./http";
 
 /**
  * OpenAI Chat Completions provider (also compatible with Azure/OpenAI-style
@@ -41,17 +42,14 @@ export class OpenAIProvider implements AIProvider {
       tool_choice: req.tools.length ? "auto" : undefined,
     };
 
-    const res = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${this.creds.apiKey}`,
-      },
-      body: JSON.stringify(body),
-    });
+    const res = await postJson(
+      `${baseUrl}/chat/completions`,
+      { authorization: `Bearer ${this.creds.apiKey}` },
+      body
+    );
 
     if (!res.ok) {
-      throw new Error(`OpenAI API error ${res.status}: ${await res.text()}`);
+      throw new Error(`OpenAI API error ${res.status}: ${await readError(res)}`);
     }
 
     const data: any = await res.json();

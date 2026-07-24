@@ -6,6 +6,7 @@ import {
   ProviderCredentials,
   ToolCall,
 } from "./types";
+import { postJson, readError } from "./http";
 
 /**
  * Anthropic Messages API provider.
@@ -36,18 +37,13 @@ export class AnthropicProvider implements AIProvider {
       })),
     };
 
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": this.creds.apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify(body),
-    });
+    const res = await postJson("https://api.anthropic.com/v1/messages", {
+      "x-api-key": this.creds.apiKey,
+      "anthropic-version": "2023-06-01",
+    }, body);
 
     if (!res.ok) {
-      throw new Error(`Anthropic API error ${res.status}: ${await res.text()}`);
+      throw new Error(`Anthropic API error ${res.status}: ${await readError(res)}`);
     }
 
     const data: any = await res.json();

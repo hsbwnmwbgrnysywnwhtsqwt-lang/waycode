@@ -64,8 +64,14 @@ media/                      # Webview assets (vanilla JS/CSS, CSP-safe)
 ```bash
 npm install
 npm run compile        # or: npm run watch
+npm test               # run the unit test suite (node:test)
 ```
 Then press **F5** in VS Code ("Run WayCode Extension") to open an Extension Development Host.
+
+The test suite (`src/test/`) covers the pure logic that must not regress: the diff
+generator, workspace path-safety, the local-model tool-call recovery parser, and
+the HTTP timeout/error handling. It runs on Node's built-in test runner — no extra
+dependencies — and in CI (GitHub Actions) on Node 18 and 20.
 
 ### Configure a model
 1. `Cmd/Ctrl+Shift+P` → **WayCode: Set API Key** → pick a provider and paste your key
@@ -92,8 +98,22 @@ Then press **F5** in VS Code ("Run WayCode Extension") to open an Extension Deve
 | `waycode.ollama.baseUrl` | Ollama server URL | `http://localhost:11434` |
 | `waycode.maxAgentSteps` | Max tool iterations per task | `25` |
 | `waycode.autoApproveReads` | Auto-approve read-only tools | `true` |
+| `waycode.autoApprove.fileEdits` | Auto-approve file create/edit/write | `false` |
+| `waycode.autoApprove.commands` | Auto-approve terminal/git/test/lint | `false` |
 
-> Writes, edits, terminal, git, tests, and linters **always** require explicit approval.
+### Approval modes
+
+Run **WayCode: Set Approval Mode** to choose how much the agent may do without asking:
+
+| Mode | Reads | File edits | Commands |
+|---|:--:|:--:|:--:|
+| Ask for everything | ask | ask | ask |
+| Auto-approve reads only *(default)* | auto | ask | ask |
+| Auto-approve file edits | auto | auto | ask |
+| Auto-approve commands | auto | ask | auto |
+| Auto-approve everything (YOLO) | auto | auto | auto |
+
+The current mode is shown in the chat's status line (🔓). Every write/command still shows a diff or the command text in the log so you can see exactly what happened.
 
 ---
 

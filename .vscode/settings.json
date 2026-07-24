@@ -7,5 +7,8 @@
   "waycode.roles.communicator.provider": "ollama",
   "waycode.roles.communicator.model": "gemma2:9b",
   "waycode.roles.coder.provider": "ollama",
-  "waycode.roles.coder.model": "qwen2.5-coder:7b"
+  "waycode.roles.coder.model": "qwen2.5-coder:7b",
+  "waycode.autoApproveReads": true,
+  "waycode.autoApprove.fileEdits": true,
+  "waycode.autoApprove.commands": false
 }

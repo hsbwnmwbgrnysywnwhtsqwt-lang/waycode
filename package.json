@@ -75,6 +75,11 @@
         "command": "waycode.configureRoles",
         "title": "WayCode: Configure Agent Roles (Communicator / Coder)",
         "category": "WayCode"
+      },
+      {
+        "command": "waycode.setApprovalMode",
+        "title": "WayCode: Set Approval Mode",
+        "category": "WayCode"
       }
     ],
     "menus": {
@@ -117,7 +122,17 @@
         "waycode.autoApproveReads": {
           "type": "boolean",
           "default": true,
-          "description": "Automatically approve read-only tools (reading/listing files). Write and terminal actions always require confirmation."
+          "description": "Auto-approve read-only tools (reading/listing/searching files)."
+        },
+        "waycode.autoApprove.fileEdits": {
+          "type": "boolean",
+          "default": false,
+          "description": "Auto-approve file writes/edits/creates without asking. Turn on only if you trust the agent to change files freely."
+        },
+        "waycode.autoApprove.commands": {
+          "type": "boolean",
+          "default": false,
+          "description": "Auto-approve terminal, git, test and lint commands without asking. Use with caution."
         },
         "waycode.multiAgent.enabled": {
           "type": "boolean",
@@ -156,7 +171,9 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "lint": "eslint src --ext ts",
-    "typecheck": "tsc --noEmit -p ./"
+    "typecheck": "tsc --noEmit -p ./",
+    "pretest": "tsc -p ./",
+    "test": "node --test out/test/"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

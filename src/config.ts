@@ -28,6 +28,33 @@ export class Config {
     return vscode.workspace.getConfiguration("waycode").get<boolean>("autoApproveReads", true);
   }
 
+  get autoApproveFileEdits(): boolean {
+    return vscode.workspace.getConfiguration("waycode").get<boolean>("autoApprove.fileEdits", false);
+  }
+
+  get autoApproveCommands(): boolean {
+    return vscode.workspace.getConfiguration("waycode").get<boolean>("autoApprove.commands", false);
+  }
+
+  /** A short label describing the current approval policy (for the status bar). */
+  get approvalModeLabel(): string {
+    const r = this.autoApproveReads;
+    const f = this.autoApproveFileEdits;
+    const c = this.autoApproveCommands;
+    if (f && c) return "auto: everything";
+    if (f) return "auto: file edits";
+    if (c) return "auto: commands";
+    if (r) return "auto: reads only";
+    return "ask for everything";
+  }
+
+  async setApprovalMode(opts: { reads: boolean; fileEdits: boolean; commands: boolean }): Promise<void> {
+    const cfg = vscode.workspace.getConfiguration("waycode");
+    await cfg.update("autoApproveReads", opts.reads, vscode.ConfigurationTarget.Global);
+    await cfg.update("autoApprove.fileEdits", opts.fileEdits, vscode.ConfigurationTarget.Global);
+    await cfg.update("autoApprove.commands", opts.commands, vscode.ConfigurationTarget.Global);
+  }
+
   get multiAgentEnabled(): boolean {
     return vscode.workspace.getConfiguration("waycode").get<boolean>("multiAgent.enabled", false);
   }

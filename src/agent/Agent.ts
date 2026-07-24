@@ -28,7 +28,12 @@ export interface AgentEvents {
 export interface AgentConfig {
   model: string;
   maxSteps: number;
+  /** Auto-approve read-only tools (read/list/search). */
   autoApproveReads: boolean;
+  /** Auto-approve file writes/edits/creates. */
+  autoApproveWrites: boolean;
+  /** Auto-approve terminal/git/test/lint commands. */
+  autoApproveCommands: boolean;
 }
 
 /**
@@ -132,11 +137,14 @@ export class Agent {
     if (!tool) {
       return { output: `Unknown tool '${call.name}'.`, isError: true };
     }
-    // Read-only tools can skip the approval prompt when configured to.
-    const wrappedCtx: ToolContext =
-      tool.risk === "read" && this.config.autoApproveReads
-        ? { ...ctx, requestApproval: async () => true }
-        : ctx;
+    // Skip the approval prompt when this risk category is auto-approved.
+    const autoApproved =
+      (tool.risk === "read" && this.config.autoApproveReads) ||
+      (tool.risk === "write" && this.config.autoApproveWrites) ||
+      (tool.risk === "execute" && this.config.autoApproveCommands);
+    const wrappedCtx: ToolContext = autoApproved
+      ? { ...ctx, requestApproval: async () => true }
+      : ctx;
     try {
       return await tool.run(call.input, wrappedCtx);
     } catch (err) {

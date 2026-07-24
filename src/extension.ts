@@ -45,8 +45,48 @@ export function activate(context: vscode.ExtensionContext): void {
 
     vscode.commands.registerCommand("waycode.setApiKey", () => setApiKey(config)),
 
-    vscode.commands.registerCommand("waycode.configureRoles", () => configureRoles(config, chat))
+    vscode.commands.registerCommand("waycode.configureRoles", () => configureRoles(config, chat)),
+
+    vscode.commands.registerCommand("waycode.setApprovalMode", () => setApprovalMode(config, chat))
   );
+}
+
+async function setApprovalMode(config: Config, chat: ChatViewProvider): Promise<void> {
+  const presets = [
+    {
+      label: "$(shield) Ask for everything",
+      detail: "Even reading files needs approval (strictest).",
+      mode: { reads: false, fileEdits: false, commands: false },
+    },
+    {
+      label: "$(eye) Auto-approve reads only",
+      detail: "Reading/searching files is automatic; edits and commands still ask. (default)",
+      mode: { reads: true, fileEdits: false, commands: false },
+    },
+    {
+      label: "$(edit) Auto-approve file edits",
+      detail: "File create/edit/write happen automatically; commands still ask.",
+      mode: { reads: true, fileEdits: true, commands: false },
+    },
+    {
+      label: "$(terminal) Auto-approve commands",
+      detail: "Terminal/git/test/lint run automatically; file edits still ask.",
+      mode: { reads: true, fileEdits: false, commands: true },
+    },
+    {
+      label: "$(rocket) Auto-approve everything (YOLO)",
+      detail: "Nothing asks for approval. Use only when you fully trust the agent.",
+      mode: { reads: true, fileEdits: true, commands: true },
+    },
+  ];
+  const pick = await vscode.window.showQuickPick(
+    presets.map((p) => ({ label: p.label, detail: p.detail, mode: p.mode })),
+    { title: "WayCode: Approval mode", matchOnDetail: true }
+  );
+  if (!pick) return;
+  await config.setApprovalMode(pick.mode);
+  chat.notify(`🔓 Approval mode: ${config.approvalModeLabel}`);
+  vscode.window.showInformationMessage(`WayCode approval mode: ${config.approvalModeLabel}.`);
 }
 
 async function configureRoles(config: Config, chat: ChatViewProvider): Promise<void> {

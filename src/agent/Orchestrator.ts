@@ -61,7 +61,8 @@ export class Orchestrator {
         temperature: 0.2,
         maxTokens: 1200,
       });
-      const spec = specResponse.text.trim();
+      // Fall back to the raw request if the communicator returned nothing usable.
+      const spec = specResponse.text.trim() || userMessage;
 
       // Pure conversation / question — no code work needed.
       if (spec.startsWith("NO_CODE_TASK:")) {

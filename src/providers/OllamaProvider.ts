@@ -6,6 +6,7 @@ import {
   ProviderCredentials,
   ToolCall,
 } from "./types";
+import { postJson, readError } from "./http";
 
 /**
  * Local models via Ollama's chat API.
@@ -39,14 +40,10 @@ export class OllamaProvider implements AIProvider {
       }));
     }
 
-    const res = await fetch(`${base}/api/chat`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    const res = await postJson(`${base}/api/chat`, {}, body);
 
     if (!res.ok) {
-      throw new Error(`Ollama error ${res.status}: ${await res.text()}`);
+      throw new Error(`Ollama error ${res.status}: ${await readError(res)}`);
     }
 
     const data: any = await res.json();

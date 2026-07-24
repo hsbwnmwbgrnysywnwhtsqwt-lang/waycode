@@ -74,13 +74,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   private statusLine(): string {
+    const approval = `  ·  🔓 ${this.config.approvalModeLabel}`;
     if (this.config.multiAgentEnabled) {
       const comm = this.config.roleModel("communicator");
       const coder = this.config.roleModel("coder");
-      return `🗣️ ${comm}  →  👨‍💻 ${coder}`;
+      return `🗣️ ${comm}  →  👨‍💻 ${coder}${approval}`;
     }
     const p = this.config.provider;
-    return `${PROVIDER_META[p].label} · ${this.config.model}`;
+    return `${PROVIDER_META[p].label} · ${this.config.model}${approval}`;
   }
 
   /** Build a role's provider instance, validating that its API key exists. */
@@ -108,6 +109,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       model: this.config.model,
       maxSteps: this.config.maxAgentSteps,
       autoApproveReads: this.config.autoApproveReads,
+      autoApproveWrites: this.config.autoApproveFileEdits,
+      autoApproveCommands: this.config.autoApproveCommands,
     };
 
     if (this.config.multiAgentEnabled) {

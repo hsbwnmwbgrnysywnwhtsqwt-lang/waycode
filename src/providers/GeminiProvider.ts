@@ -6,6 +6,7 @@ import {
   ProviderCredentials,
   ToolCall,
 } from "./types";
+import { postJson, readError } from "./http";
 
 /**
  * Google Gemini provider (generateContent).
@@ -45,14 +46,10 @@ export class GeminiProvider implements AIProvider {
       ];
     }
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    const res = await postJson(url, {}, body);
 
     if (!res.ok) {
-      throw new Error(`Gemini API error ${res.status}: ${await res.text()}`);
+      throw new Error(`Gemini API error ${res.status}: ${await readError(res)}`);
     }
 
     const data: any = await res.json();
