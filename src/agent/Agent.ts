@@ -9,6 +9,7 @@ import { ToolContext, ToolPreview } from "../tools/Tool";
 import { ProjectContext } from "../context/ProjectContext";
 import { Memory } from "../memory/Memory";
 import { buildSystemPrompt } from "./prompts";
+import { trimHistory } from "./history";
 
 /** Events the agent emits so the UI can render progress in real time. */
 export interface AgentEvents {
@@ -89,7 +90,7 @@ export class Agent {
 
         const response = await this.provider.complete({
           system,
-          messages: this.history,
+          messages: trimHistory(this.history),
           tools: this.tools.schemas(),
           model: this.config.model,
           maxTokens: 4096,
