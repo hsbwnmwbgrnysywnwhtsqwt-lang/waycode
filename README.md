@@ -144,7 +144,20 @@ Turn it on with **WayCode: Configure Agent Roles**. You pick a model for each ro
 
 Why: the language-strong model talks to you, while a code-strong (and often cheaper/faster) model does the engineering — no single model has to be great at everything. When multi-agent is **off**, one agent handles the whole task.
 
-Relevant settings: `waycode.multiAgent.enabled`, `waycode.roles.communicator.{provider,model}`, `waycode.roles.coder.{provider,model}`.
+**Smart routing:** the communicator bot decides, per message, whether it's a plain
+conversation/question (it answers directly — no coder involved) or an actual coding
+task (it writes a spec and hands it to the coder). The routing decision is shown in
+the chat (🧭).
+
+**Reply language:** run **WayCode: Select Response Language** (or set `waycode.language`)
+to force replies into Hebrew, English, Arabic, and more — or leave it on `auto` to
+match whatever language you write in.
+
+**Transparency:** every tool the agent runs appears as a live card showing the exact
+command/path, a running→done/error status, and its output; each bot's reasoning is
+shown as a 💭 thinking block.
+
+Relevant settings: `waycode.multiAgent.enabled`, `waycode.roles.communicator.{provider,model}`, `waycode.roles.coder.{provider,model}`, `waycode.language`.
 
 ## 🧠 How the agent works
 1. **Understand** — reads relevant files; never edits unread code.

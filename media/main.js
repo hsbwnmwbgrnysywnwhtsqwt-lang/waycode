@@ -10,6 +10,9 @@
   const newTaskBtn = document.getElementById("newTask");
   const statusEl = document.getElementById("status");
 
+  /** In-flight tool cards, keyed by tool-call id, so we can update them in place. */
+  const toolCards = {};
+
   function scrollToBottom() {
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
@@ -33,6 +36,10 @@
     return !ltr || rtl.index < ltr.index;
   }
 
+  function applyDir(node, text) {
+    if (isRTL(text)) node.setAttribute("dir", "rtl");
+  }
+
   // Inline markdown: `code`, **bold**, *italic*. Uses text sentinels (WCINLn)
   // to protect inline-code spans from the bold/italic passes.
   function inline(s) {
@@ -40,11 +47,11 @@
     const codes = [];
     s = s.replace(/`([^`]+)`/g, function (_, c) {
       codes.push(c);
-      return "WCINL" + (codes.length - 1) + "";
+      return "WCINL" + (codes.length - 1) + "";
     });
     s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
     s = s.replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
-    s = s.replace(/WCINL(\d+)/g, function (_, i) {
+    s = s.replace(/WCINL(\d+)/g, function (_, i) {
       return '<code class="inline">' + codes[i] + "</code>";
     });
     return s;
@@ -55,7 +62,7 @@
     const blocks = [];
     src = src.replace(/```(\w*)\r?\n?([\s\S]*?)```/g, function (_, lang, code) {
       blocks.push({ lang: lang, code: code.replace(/\r?\n$/, "") });
-      return "WCBLK" + (blocks.length - 1) + "";
+      return "WCBLK" + (blocks.length - 1) + "";
     });
     const lines = src.split(/\r?\n/);
     let html = "";
@@ -67,7 +74,7 @@
       }
     };
     for (const line of lines) {
-      const blockMatch = line.match(/^\s*WCBLK(\d+)\s*$/);
+      const blockMatch = line.match(/^\s*WCBLK(\d+)\s*$/);
       if (blockMatch) {
         closeList();
         const b = blocks[+blockMatch[1]];
@@ -113,7 +120,7 @@
 
   function addMessage(role, text) {
     const node = el("div", "msg " + role);
-    if (isRTL(text)) node.setAttribute("dir", "rtl");
+    applyDir(node, text);
     if (role === "assistant" || role === "error") {
       node.innerHTML = renderMarkdown(text);
     } else {
@@ -126,7 +133,16 @@
 
   function addLog(text) {
     const node = el("div", "log", text);
-    if (isRTL(text)) node.setAttribute("dir", "rtl");
+    applyDir(node, text);
+    messagesEl.appendChild(node);
+    scrollToBottom();
+  }
+
+  // A bot's reasoning — shown as a readable, visually-secondary block.
+  function addThinking(text) {
+    const node = el("div", "thinking");
+    applyDir(node, text);
+    node.textContent = "💭 " + text;
     messagesEl.appendChild(node);
     scrollToBottom();
   }
@@ -143,23 +159,61 @@
     return pre;
   }
 
-  function addTool(name, input) {
-    const wrap = el("div", "tool");
+  // A one-line human summary of what a tool is about to do.
+  function summarizeInput(name, input) {
+    if (!input) return "";
+    if (input.command) return "$ " + input.command;
+    if (input.args) return "git " + input.args;
+    if (input.path && input.pattern) return input.path + "  ·  /" + input.pattern + "/";
+    if (input.path) return input.path;
+    if (input.pattern) return "/" + input.pattern + "/";
+    const keys = Object.keys(input);
+    return keys.length ? JSON.stringify(input) : "";
+  }
+
+  // Create a tool card in the "running" state. Returns the card handle.
+  function startTool(id, name, input) {
+    const wrap = el("div", "tool running");
     const head = el("div", "tool-head");
     head.appendChild(el("span", "name", "🔧 " + name));
-    const toggle = el("span", "toggle", "▸");
-    head.appendChild(toggle);
+    const status = el("span", "tool-status", "running…");
+    head.appendChild(status);
+
+    const sub = el("div", "tool-sub");
+    const summary = summarizeInput(name, input);
+    if (summary) sub.textContent = summary;
+
     const body = el("div", "tool-body hidden");
-    body.textContent = "input: " + JSON.stringify(input, null, 2);
     head.addEventListener("click", function () {
       body.classList.toggle("hidden");
-      toggle.textContent = body.classList.contains("hidden") ? "▸" : "▾";
     });
+
     wrap.appendChild(head);
+    if (summary) wrap.appendChild(sub);
     wrap.appendChild(body);
     messagesEl.appendChild(wrap);
     scrollToBottom();
-    return { wrap: wrap, body: body };
+
+    const card = { wrap: wrap, status: status, body: body };
+    if (id) toolCards[id] = card;
+    return card;
+  }
+
+  // Move a tool card to its finished state and show output / diff.
+  function finishTool(card, isError, output, preview) {
+    card.wrap.classList.remove("running");
+    card.wrap.classList.add(isError ? "error" : "done");
+    card.status.textContent = isError ? "✗ error" : "✓";
+    card.body.textContent = "";
+    if (preview && preview.diff) {
+      card.body.appendChild(renderDiff(preview.diff));
+      card.body.classList.remove("hidden");
+    } else {
+      card.body.textContent = output || "(no output)";
+      // Expand automatically on error; keep tidy on success.
+      card.body.classList.toggle("hidden", !isError);
+    }
+    scrollToBottom();
   }
 
   function addApproval(id, preview) {
@@ -238,25 +292,19 @@
         scrollToBottom();
         break;
       case "thinking":
-        addLog("💭 " + msg.text);
+        addThinking(msg.text);
         break;
       case "log":
         addLog(msg.text);
         break;
       case "toolStart":
-        addTool(msg.name, msg.input);
+        startTool(msg.id, msg.name, msg.input);
         break;
       case "toolEnd": {
-        const t = addTool(msg.name + (msg.isError ? " (error)" : ""), {});
-        if (msg.isError) t.wrap.classList.add("error");
-        t.body.classList.remove("hidden");
-        t.body.textContent = "";
-        if (msg.preview && msg.preview.diff) {
-          t.body.appendChild(renderDiff(msg.preview.diff));
-        } else {
-          t.body.textContent = msg.output || "(no output)";
-        }
-        scrollToBottom();
+        let card = msg.id ? toolCards[msg.id] : null;
+        if (!card) card = startTool(msg.id, msg.name, {});
+        finishTool(card, msg.isError, msg.output, msg.preview);
+        if (msg.id) delete toolCards[msg.id];
         break;
       }
       case "approvalRequest":

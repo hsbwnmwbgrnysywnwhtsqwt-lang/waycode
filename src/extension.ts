@@ -47,8 +47,37 @@ export function activate(context: vscode.ExtensionContext): void {
 
     vscode.commands.registerCommand("waycode.configureRoles", () => configureRoles(config, chat)),
 
-    vscode.commands.registerCommand("waycode.setApprovalMode", () => setApprovalMode(config, chat))
+    vscode.commands.registerCommand("waycode.setApprovalMode", () => setApprovalMode(config, chat)),
+
+    vscode.commands.registerCommand("waycode.selectLanguage", () => selectLanguage(config, chat))
   );
+}
+
+async function selectLanguage(config: Config, chat: ChatViewProvider): Promise<void> {
+  const languages = [
+    "auto",
+    "Hebrew",
+    "English",
+    "Arabic",
+    "Russian",
+    "Spanish",
+    "French",
+    "German",
+    "Portuguese",
+    "Chinese",
+  ];
+  const pick = await vscode.window.showQuickPick(
+    languages.map((l) => ({
+      label: l === "auto" ? "Auto (match my language)" : l,
+      value: l,
+      description: l === config.language ? "current" : "",
+    })),
+    { title: "WayCode: Reply language" }
+  );
+  if (!pick) return;
+  await config.setLanguage(pick.value);
+  chat.notify(`🌐 Reply language: ${pick.label}`);
+  vscode.window.showInformationMessage(`WayCode will reply in: ${pick.label}.`);
 }
 
 async function setApprovalMode(config: Config, chat: ChatViewProvider): Promise<void> {

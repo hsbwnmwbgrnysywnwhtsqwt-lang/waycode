@@ -5,6 +5,17 @@ All notable changes to WayCode are documented here.
 ## [Unreleased]
 
 ### Added
+- **Smart routing** — the communicator bot classifies each message as CHAT
+  (answers directly) or CODE (writes a spec for the coder), so plain questions no
+  longer make a round-trip through the coder. The route is shown in the chat (🧭).
+- **Reply-language selection** — `WayCode: Select Response Language` / `waycode.language`
+  makes the assistant reply in a chosen language (Hebrew, English, Arabic, …) or
+  `auto` to match the user. Threaded through both single-agent and multi-agent modes.
+- **Live tool transparency** — tool cards now update in place (running → done/error),
+  show the exact command/path being run, and reveal output on demand; each bot's
+  reasoning renders as a 💭 thinking block.
+
+### (earlier in this release)
 - **Configurable approval modes** — `WayCode: Set Approval Mode` lets you choose
   between asking for everything, auto-approving reads, file edits, commands, or
   everything (YOLO). Current mode is shown in the chat status line.

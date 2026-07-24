@@ -80,6 +80,11 @@
         "command": "waycode.setApprovalMode",
         "title": "WayCode: Set Approval Mode",
         "category": "WayCode"
+      },
+      {
+        "command": "waycode.selectLanguage",
+        "title": "WayCode: Select Response Language",
+        "category": "WayCode"
       }
     ],
     "menus": {
@@ -113,6 +118,12 @@
           "type": "string",
           "default": "http://localhost:11434",
           "description": "Base URL for a local Ollama server."
+        },
+        "waycode.language": {
+          "type": "string",
+          "default": "auto",
+          "enum": ["auto", "Hebrew", "English", "Arabic", "Russian", "Spanish", "French", "German", "Portuguese", "Chinese"],
+          "description": "Language the assistant replies in. 'auto' matches the language you write in."
         },
         "waycode.maxAgentSteps": {
           "type": "number",

@@ -75,13 +75,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   private statusLine(): string {
     const approval = `  ·  🔓 ${this.config.approvalModeLabel}`;
+    const lang = this.config.language !== "auto" ? `  ·  🌐 ${this.config.language}` : "";
     if (this.config.multiAgentEnabled) {
       const comm = this.config.roleModel("communicator");
       const coder = this.config.roleModel("coder");
-      return `🗣️ ${comm}  →  👨‍💻 ${coder}${approval}`;
+      return `🗣️ ${comm}  →  👨‍💻 ${coder}${approval}${lang}`;
     }
     const p = this.config.provider;
-    return `${PROVIDER_META[p].label} · ${this.config.model}${approval}`;
+    return `${PROVIDER_META[p].label} · ${this.config.model}${approval}${lang}`;
   }
 
   /** Build a role's provider instance, validating that its API key exists. */
@@ -111,6 +112,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       autoApproveReads: this.config.autoApproveReads,
       autoApproveWrites: this.config.autoApproveFileEdits,
       autoApproveCommands: this.config.autoApproveCommands,
+      language: this.config.language,
     };
 
     if (this.config.multiAgentEnabled) {
@@ -154,10 +156,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const events: AgentEvents = {
       onAssistantText: (t) => this.post({ type: "assistant", text: t }),
       onThinking: (t) => this.post({ type: "thinking", text: t }),
-      onToolStart: (call) => this.post({ type: "toolStart", name: call.name, input: call.input }),
+      onToolStart: (call) =>
+        this.post({ type: "toolStart", id: call.id, name: call.name, input: call.input }),
       onToolEnd: (call, result, preview) =>
         this.post({
           type: "toolEnd",
+          id: call.id,
           name: call.name,
           isError: result.isError ?? false,
           output: result.content,

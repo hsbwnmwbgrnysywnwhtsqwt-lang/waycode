@@ -34,6 +34,8 @@ export interface AgentConfig {
   autoApproveWrites: boolean;
   /** Auto-approve terminal/git/test/lint commands. */
   autoApproveCommands: boolean;
+  /** Reply language: "auto" (match the user) or a language name like "Hebrew". */
+  language: string;
 }
 
 /**
@@ -68,7 +70,7 @@ export class Agent {
     let inputTokens = 0;
     let outputTokens = 0;
     const summary = await this.project.summarize();
-    const system = buildSystemPrompt(summary, this.memory.render());
+    const system = buildSystemPrompt(summary, this.memory.render(), this.config.language);
 
     this.history.push({ role: "user", content: userMessage });
 

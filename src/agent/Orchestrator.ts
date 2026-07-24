@@ -7,6 +7,7 @@ import {
   buildCommunicatorInPrompt,
   buildCommunicatorOutPrompt,
 } from "./prompts";
+import { classifyRoute } from "./routing";
 
 export interface RoleModel {
   provider: AIProvider;
@@ -51,27 +52,29 @@ export class Orchestrator {
     try {
       const summary = await this.project.summarize();
 
-      // ---- Phase 1: communicator understands the user -----------------------
-      events.onPhase?.("communicator-in", "🗣️ Language bot is analyzing your request…");
-      const specResponse = await this.communicator.provider.complete({
-        system: buildCommunicatorInPrompt(summary),
+      // ---- Phase 1: communicator understands the user and ROUTES -----------
+      events.onPhase?.("communicator-in", "🗣️ Language bot is reading your message…");
+      const routeResponse = await this.communicator.provider.complete({
+        system: buildCommunicatorInPrompt(summary, this.config.language),
         messages: [{ role: "user", content: userMessage }],
         tools: [],
         model: this.communicator.model,
         temperature: 0.2,
         maxTokens: 1200,
       });
-      // Fall back to the raw request if the communicator returned nothing usable.
-      const spec = specResponse.text.trim() || userMessage;
+      const route = classifyRoute(routeResponse.text, userMessage);
 
-      // Pure conversation / question — no code work needed.
-      if (spec.startsWith("NO_CODE_TASK:")) {
-        const answer = spec.replace(/^NO_CODE_TASK:\s*/, "");
-        events.onAssistantText(answer || "OK.");
+      // CHAT: the language bot answers directly — no coder involved.
+      if (route.kind === "chat") {
+        events.onPhase?.("route-chat", "🧭 Handled directly (conversation)");
+        events.onAssistantText(route.content || "🙂");
         events.onDone();
         return;
       }
 
+      // CODE: hand a precise spec to the coder.
+      events.onPhase?.("route-code", "🧭 Routing to the coder bot");
+      const spec = route.content;
       events.onLog(`📋 Task spec:\n${spec}`);
 
       // ---- Phase 2: coder does the engineering -----------------------------
@@ -90,7 +93,7 @@ export class Orchestrator {
       // ---- Phase 3: communicator explains the result -----------------------
       events.onPhase?.("communicator-out", "🗣️ Language bot is preparing the explanation…");
       const explainResponse = await this.communicator.provider.complete({
-        system: buildCommunicatorOutPrompt(),
+        system: buildCommunicatorOutPrompt(this.config.language),
         messages: [
           {
             role: "user",

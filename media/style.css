@@ -171,11 +171,38 @@ pre.diff {
   border-radius: 0 6px 6px 0;
 }
 
+.thinking {
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: 0.82;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 6px 10px;
+  margin: 2px 0;
+  border-inline-start: 2px solid var(--vscode-panel-border);
+  background: var(--vscode-editorWidget-background);
+  border-radius: 0 6px 6px 0;
+}
+.thinking[dir="rtl"] {
+  border-radius: 6px 0 0 6px;
+  text-align: right;
+}
+
 .tool {
   border: 1px solid var(--vscode-panel-border);
   border-radius: 6px;
   overflow: hidden;
   font-size: 12px;
+  border-inline-start-width: 3px;
+}
+.tool.running {
+  border-inline-start-color: var(--vscode-progressBar-background, #3794ff);
+}
+.tool.done {
+  border-inline-start-color: var(--vscode-gitDecoration-addedResourceForeground, #4caf50);
+}
+.tool.error {
+  border-inline-start-color: var(--vscode-errorForeground, #f44336);
 }
 
 .tool-head {
@@ -184,11 +211,37 @@ pre.diff {
   cursor: pointer;
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 8px;
 }
 
 .tool-head .name {
   font-weight: 600;
+}
+
+.tool-status {
+  font-size: 10px;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+.tool.running .tool-status {
+  animation: waycode-pulse 1.2s ease-in-out infinite;
+}
+@keyframes waycode-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.9; }
+}
+
+.tool-sub {
+  padding: 4px 8px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 11px;
+  opacity: 0.85;
+  direction: ltr;
+  text-align: left;
+  border-top: 1px solid var(--vscode-panel-border);
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 .tool-body {

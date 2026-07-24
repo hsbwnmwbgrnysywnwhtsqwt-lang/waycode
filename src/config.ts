@@ -55,6 +55,16 @@ export class Config {
     await cfg.update("autoApprove.commands", opts.commands, vscode.ConfigurationTarget.Global);
   }
 
+  get language(): string {
+    return vscode.workspace.getConfiguration("waycode").get<string>("language", "auto");
+  }
+
+  async setLanguage(lang: string): Promise<void> {
+    await vscode.workspace
+      .getConfiguration("waycode")
+      .update("language", lang, vscode.ConfigurationTarget.Global);
+  }
+
   get multiAgentEnabled(): boolean {
     return vscode.workspace.getConfiguration("waycode").get<boolean>("multiAgent.enabled", false);
   }

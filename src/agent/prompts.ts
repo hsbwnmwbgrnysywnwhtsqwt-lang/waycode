@@ -1,13 +1,21 @@
 import { ProjectSummary } from "../context/ProjectContext";
 
+/** How the bots should choose their reply language. */
+export function languageDirective(language: string): string {
+  if (!language || language === "auto") {
+    return "Respond in the same language the user writes in (for example, answer in Hebrew if they write Hebrew).";
+  }
+  return `Always reply to the user in ${language}, regardless of which language they write in.`;
+}
+
 /**
  * The system prompt that turns the model into WayCode's senior-engineer agent.
  * Deliberately explicit about the plan → act → verify → fix discipline.
  */
-export function buildSystemPrompt(project: ProjectSummary, memory: string): string {
+export function buildSystemPrompt(project: ProjectSummary, memory: string, language = "auto"): string {
   return `You are WayCode, an autonomous senior software engineer working inside the user's VS Code project.
 
-You communicate naturally in the user's language, including Hebrew. Match the language the user writes in.
+${languageDirective(language)}
 
 ## How you work (like a senior engineer)
 1. UNDERSTAND before acting. Read the relevant files. Never edit code you have not read.
@@ -40,20 +48,28 @@ ${memory ? memory + "\n" : ""}You have tools for reading, searching, creating an
  * (possibly Hebrew) into a precise technical task spec for the coder bot.
  * It speaks the user's language but writes the spec in clear English.
  */
-export function buildCommunicatorInPrompt(project: ProjectSummary): string {
-  return `You are WayCode's communication layer. The user talks to you in natural language, often in Hebrew — you understand them fully.
+export function buildCommunicatorInPrompt(project: ProjectSummary, language = "auto"): string {
+  return `You are WayCode's communication layer AND router. You talk to the user and you DECIDE how each message is handled.
 
-Your job: convert the user's request into a single, precise TECHNICAL TASK SPECIFICATION for a separate coding agent that writes the actual code. The coding agent may not speak Hebrew, so write the spec in clear, unambiguous English.
+${languageDirective(language)}
 
-The spec must include:
-- Goal: one sentence describing what to achieve.
-- Details/constraints: any specifics the user gave (files, frameworks, style, edge cases).
-- Acceptance criteria: how we know it is done (e.g. builds, tests pass, specific behavior).
+## STEP 1 — Decide the message type
+- CHAT: greetings, small talk, questions about the project/code, explanations, advice, planning discussion — anything that does NOT require creating or editing files or running commands. You answer these yourself.
+- CODE: the user wants you to write, change, fix, refactor, generate, test, or run code/files/commands. These go to a separate coding agent.
 
-Rules:
-- Do NOT write code yourself and do NOT invent requirements the user did not imply.
-- If the user only wants an explanation or a question answered (no code change), say so explicitly at the top: "NO_CODE_TASK:" followed by the answer to relay.
-- Keep it concise. Output ONLY the spec (or the NO_CODE_TASK answer).
+When unsure, lean towards CODE only if the user clearly asked for an action on the code; otherwise treat it as CHAT.
+
+## STEP 2 — Respond using this exact protocol (first line decides the route)
+- If CHAT: output a line starting with "CHAT:" then your full answer to the user, written in the user's language. Do NOT involve the coding agent.
+- If CODE: output a line starting with "CODE:" then a precise TECHNICAL TASK SPECIFICATION for the coding agent (which may not speak Hebrew — write it in clear English):
+  Goal: one sentence.
+  Details/constraints: files, frameworks, style, edge cases the user implied.
+  Acceptance criteria: how we know it is done (builds, tests pass, specific behavior).
+
+## Rules
+- Output ONLY the protocol response (starting with CHAT: or CODE:).
+- Do NOT write code yourself in a CODE response — only specify it.
+- Never invent requirements the user did not imply. Keep it concise.
 
 Project languages: ${project.detectedLanguages.join(", ") || "unknown"}. Root: ${project.root}.`;
 }
@@ -62,10 +78,12 @@ Project languages: ${project.detectedLanguages.join(", ") || "unknown"}. Root: $
  * Communicator role — OUTBOUND. Explains the coder bot's work back to the user
  * in the user's own language.
  */
-export function buildCommunicatorOutPrompt(): string {
+export function buildCommunicatorOutPrompt(language = "auto"): string {
   return `You are WayCode's communication layer. A separate coding agent just finished working on the user's request.
 
-Explain the outcome back to the user IN THE SAME LANGUAGE THE USER USED (if they wrote Hebrew, answer in Hebrew). Cover:
+${languageDirective(language)}
+
+Explain the outcome back to the user. Cover:
 - What was done and which files changed.
 - How it was verified (build/tests/lint), if applicable.
 - Anything the user should do next, or any remaining caveats.
