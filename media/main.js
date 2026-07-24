@@ -79,18 +79,29 @@
         closeList();
         const b = blocks[+blockMatch[1]];
         html +=
+          '<div class="code-wrap"><button class="copy-btn" type="button">Copy</button>' +
           '<pre class="code" dir="ltr"' +
           (b.lang ? ' data-lang="' + escapeHtml(b.lang) + '"' : "") +
           "><code>" +
           escapeHtml(b.code) +
-          "</code></pre>";
+          "</code></pre></div>";
         continue;
       }
       if (/^\s*$/.test(line)) {
         closeList();
         continue;
       }
+      if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+        closeList();
+        html += "<hr />";
+        continue;
+      }
       let m;
+      if ((m = line.match(/^\s*>\s?(.*)$/))) {
+        closeList();
+        html += "<blockquote>" + inline(m[1]) + "</blockquote>";
+        continue;
+      }
       if ((m = line.match(/^(#{1,6})\s+(.*)$/))) {
         closeList();
         const lvl = m[1].length;
@@ -119,6 +130,7 @@
   }
 
   function addMessage(role, text) {
+    removeWelcome();
     const node = el("div", "msg " + role);
     applyDir(node, text);
     if (role === "assistant" || role === "error") {
@@ -275,6 +287,59 @@
     }
   });
 
+  // Copy-code buttons (event delegation, since code blocks are built as HTML).
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(function () {});
+      return;
+    }
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand("copy");
+    } catch (e) {
+      /* ignore */
+    }
+    document.body.removeChild(ta);
+  }
+
+  messagesEl.addEventListener("click", function (e) {
+    const target = /** @type {HTMLElement} */ (e.target);
+    if (!target || !target.classList || !target.classList.contains("copy-btn")) return;
+    const wrap = target.parentElement;
+    const code = wrap && wrap.querySelector("pre.code code");
+    if (code) {
+      copyText(code.textContent || "");
+      target.textContent = "Copied";
+      setTimeout(function () {
+        target.textContent = "Copy";
+      }, 1200);
+    }
+  });
+
+  function removeWelcome() {
+    const w = messagesEl.querySelector(".welcome");
+    if (w) w.remove();
+  }
+
+  function showWelcome() {
+    const w = el("div", "welcome");
+    w.innerHTML = renderMarkdown(
+      [
+        "### 👋 Welcome to WayCode",
+        "I'm your AI coding agent. To get started:",
+        "- **WayCode: Set API Key** — add a provider key (Ollama needs none).",
+        "- **WayCode: Configure Agent Roles** — pick a language bot + a coder bot.",
+        "- **WayCode: Select Response Language** — reply in Hebrew, English, and more.",
+        "",
+        "Open a project folder, then ask me anything — in your own language.",
+      ].join("\n")
+    );
+    messagesEl.appendChild(w);
+  }
+
   window.addEventListener("message", function (event) {
     const msg = event.data;
     switch (msg.type) {
@@ -319,6 +384,7 @@
         break;
       case "cleared":
         messagesEl.innerHTML = "";
+        showWelcome();
         addLog("Started a new task.");
         break;
       case "focusInput":
@@ -327,5 +393,6 @@
     }
   });
 
+  showWelcome();
   vscode.postMessage({ type: "ready" });
 })();
