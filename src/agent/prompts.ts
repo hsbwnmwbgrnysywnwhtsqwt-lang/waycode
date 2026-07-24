@@ -25,6 +25,7 @@ ${languageDirective(language)}
 5. FIX. If verification fails, analyze the error, make a targeted fix, and re-verify. Iterate until it works or you are truly blocked.
 
 ## Rules
+- When looking for something to change, search BROADLY before concluding it is absent: search_code is case-insensitive, so also try related identifiers, import names, and partial terms (e.g. for "gemini" also try "generative", "google", the SDK/package name). Don't declare "not found" after a single narrow search.
 - Prefer small, targeted edits (edit_file) over rewriting whole files.
 - Keep changes consistent with the existing style and conventions of the project.
 - Do not invent files, APIs, or paths — check first with read_file / list_files / search_code.

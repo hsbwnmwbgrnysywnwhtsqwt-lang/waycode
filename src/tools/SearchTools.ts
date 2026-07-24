@@ -5,13 +5,17 @@ import { runCommand } from "./exec";
 export class GrepTool implements Tool {
   readonly name = "search_code";
   readonly description =
-    "Search the workspace for a text pattern (regex) and return matching files and lines. Use to locate relevant code.";
+    "Search the workspace for a text pattern (regex) and return matching files and lines. Case-insensitive by default. Use to locate relevant code.";
   readonly risk = "read" as const;
   readonly parameters = {
     type: "object",
     properties: {
       pattern: { type: "string", description: "Regex or literal text to search for." },
       glob: { type: "string", description: "Optional file glob to limit the search, e.g. '*.ts'." },
+      case_sensitive: {
+        type: "boolean",
+        description: "Match case exactly. Defaults to false (case-insensitive) so 'gemini' also finds 'Gemini'.",
+      },
     },
     required: ["pattern"],
   };
@@ -19,10 +23,11 @@ export class GrepTool implements Tool {
   async run(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolRunResult> {
     const pattern = String(input.pattern ?? "");
     const glob = input.glob ? String(input.glob) : undefined;
+    const caseFlag = input.case_sensitive ? "" : "-i ";
     const escaped = pattern.replace(/'/g, "'\\''");
     // Prefer ripgrep if available, otherwise fall back to grep.
     const globArg = glob ? `-g '${glob.replace(/'/g, "'\\''")}'` : "";
-    const rg = `rg -n --no-heading --color never ${globArg} -- '${escaped}' . || grep -rn --exclude-dir=node_modules --exclude-dir=.git -- '${escaped}' .`;
+    const rg = `rg -n --no-heading --color never ${caseFlag}${globArg} -- '${escaped}' . || grep -rn ${caseFlag}--exclude-dir=node_modules --exclude-dir=.git -- '${escaped}' .`;
     ctx.log(`🔍 search "${pattern}"`);
     const res = await runCommand(rg, ctx.workspaceRoot, 60_000);
     const out = res.stdout.trim() || "(no matches)";
