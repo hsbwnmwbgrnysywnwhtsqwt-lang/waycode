@@ -96,6 +96,7 @@ dependencies — and in CI (GitHub Actions) on Node 18 and 20.
 | `waycode.provider` | Active provider | `anthropic` |
 | `waycode.model` | Model id | `claude-sonnet-4-5` |
 | `waycode.ollama.baseUrl` | Ollama server URL | `http://localhost:11434` |
+| `waycode.openai.baseUrl` | OpenAI-compatible endpoint (LM Studio, Groq, Azure…) | `` (api.openai.com) |
 | `waycode.maxAgentSteps` | Max tool iterations per task | `25` |
 | `waycode.autoApproveReads` | Auto-approve read-only tools | `true` |
 | `waycode.autoApprove.fileEdits` | Auto-approve file create/edit/write | `false` |

@@ -150,11 +150,7 @@ async function configureRoles(config: Config, chat: ChatViewProvider): Promise<v
     );
     if (!providerPick) return;
 
-    const model = await vscode.window.showInputBox({
-      title: `${role.toUpperCase()} model (${providerPick.label})`,
-      value: config.roleModel(role) || PROVIDER_META[providerPick.id].defaultModel,
-      prompt: hint,
-    });
+    const model = await pickModel(config, providerPick.id, config.roleModel(role));
     if (model === undefined) return;
     await config.setRole(role, providerPick.id, model);
 
@@ -181,11 +177,7 @@ async function selectModel(config: Config, chat: ChatViewProvider): Promise<void
   if (!providerPick) return;
   await config.setProvider(providerPick.id);
 
-  const model = await vscode.window.showInputBox({
-    title: `Model for ${providerPick.label}`,
-    value: PROVIDER_META[providerPick.id].defaultModel,
-    prompt: "Enter the model id to use.",
-  });
+  const model = await pickModel(config, providerPick.id, config.model);
   if (model) {
     await config.setModel(model);
   }
@@ -224,6 +216,49 @@ async function setApiKey(config: Config, preselected?: ProviderId): Promise<void
     await config.setApiKey(id, key);
     vscode.window.showInformationMessage(`WayCode: API key saved for ${PROVIDER_META[id].label}.`);
   }
+}
+
+/** Fetch the list of models installed in a local Ollama server. */
+async function fetchOllamaModels(baseUrl: string): Promise<string[]> {
+  try {
+    const res = await fetch(`${baseUrl}/api/tags`);
+    if (!res.ok) return [];
+    const data = (await res.json()) as { models?: Array<{ name?: string }> };
+    return (data.models ?? []).map((m) => m.name).filter((n): n is string => Boolean(n));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Pick a model id. For Ollama we offer the installed models directly (with a
+ * "type manually" escape hatch); for other providers we fall back to text input.
+ */
+async function pickModel(
+  config: Config,
+  providerId: ProviderId,
+  currentModel: string
+): Promise<string | undefined> {
+  if (providerId === "ollama") {
+    const models = await fetchOllamaModels(config.ollamaBaseUrl);
+    if (models.length) {
+      const MANUAL = "✏️ Type a model name…";
+      const pick = await vscode.window.showQuickPick(
+        [
+          ...models.map((m) => ({ label: m, description: m === currentModel ? "current" : "" })),
+          { label: MANUAL, description: "" },
+        ],
+        { title: "WayCode: Select an installed Ollama model" }
+      );
+      if (!pick) return undefined;
+      if (pick.label !== MANUAL) return pick.label;
+    }
+  }
+  return vscode.window.showInputBox({
+    title: `Model id (${PROVIDER_META[providerId].label})`,
+    value: currentModel || PROVIDER_META[providerId].defaultModel,
+    prompt: "Enter the model id to use.",
+  });
 }
 
 export function deactivate(): void {

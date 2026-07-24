@@ -105,6 +105,10 @@ export class Config {
     return vscode.workspace.getConfiguration("waycode").get<string>("ollama.baseUrl", "http://localhost:11434");
   }
 
+  get openaiBaseUrl(): string {
+    return vscode.workspace.getConfiguration("waycode").get<string>("openai.baseUrl", "").trim();
+  }
+
   async setProvider(id: ProviderId): Promise<void> {
     await vscode.workspace
       .getConfiguration("waycode")
@@ -133,6 +137,9 @@ export class Config {
     }
     if (id === "ollama") {
       creds.baseUrl = this.ollamaBaseUrl;
+    }
+    if (id === "openai" && this.openaiBaseUrl) {
+      creds.baseUrl = this.openaiBaseUrl;
     }
     return creds;
   }

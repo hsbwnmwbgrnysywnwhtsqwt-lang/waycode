@@ -119,6 +119,11 @@
           "default": "http://localhost:11434",
           "description": "Base URL for a local Ollama server."
         },
+        "waycode.openai.baseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Optional base URL for an OpenAI-compatible endpoint (e.g. LM Studio, Groq, Together, Azure). Leave empty for api.openai.com."
+        },
         "waycode.language": {
           "type": "string",
           "default": "auto",
