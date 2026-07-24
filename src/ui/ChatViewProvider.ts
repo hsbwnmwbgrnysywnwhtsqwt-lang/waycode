@@ -21,6 +21,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   private view?: vscode.WebviewView;
   private runner?: Runner;
+  /** Signature of the config the current runner was built with. */
+  private runnerSig?: string;
   private readonly pendingApprovals = new Map<string, (approved: boolean) => void>();
   private approvalSeq = 0;
 
@@ -97,6 +99,73 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     return { provider: createProvider(providerId, creds), model: this.config.roleModel(role) };
   }
 
+  /** Identity of the current model/mode/config; a change forces a fresh runner. */
+  private runnerSignature(root: string): string {
+    const c = this.config;
+    const approval = `${c.autoApproveReads}/${c.autoApproveFileEdits}/${c.autoApproveCommands}`;
+    const common = `${root}|${c.language}|${approval}|${c.maxAgentSteps}`;
+    if (c.multiAgentEnabled) {
+      return `multi|${c.roleProvider("communicator")}:${c.roleModel("communicator")}|${c.roleProvider(
+        "coder"
+      )}:${c.roleModel("coder")}|${common}`;
+    }
+    return `single|${c.provider}:${c.model}|${common}`;
+  }
+
+  private agentConfig() {
+    return {
+      model: this.config.model,
+      maxSteps: this.config.maxAgentSteps,
+      autoApproveReads: this.config.autoApproveReads,
+      autoApproveWrites: this.config.autoApproveFileEdits,
+      autoApproveCommands: this.config.autoApproveCommands,
+      language: this.config.language,
+    };
+  }
+
+  /** Construct the active runner (single Agent or multi-agent Orchestrator). */
+  private async buildRunner(root: string): Promise<Runner | undefined> {
+    const cfg = this.agentConfig();
+    if (this.config.multiAgentEnabled) {
+      const comm = await this.buildRole("communicator");
+      const coder = await this.buildRole("coder");
+      if ("error" in comm) {
+        this.post({ type: "error", text: comm.error });
+        return undefined;
+      }
+      if ("error" in coder) {
+        this.post({ type: "error", text: coder.error });
+        return undefined;
+      }
+      return new Orchestrator(
+        comm,
+        coder,
+        ToolRegistry.default(),
+        new ProjectContext(root),
+        this.memory,
+        cfg,
+        root
+      );
+    }
+    const providerId = this.config.provider;
+    const creds = await this.config.credentialsFor(providerId);
+    if (PROVIDER_META[providerId].requiresApiKey && !creds.apiKey) {
+      this.post({
+        type: "error",
+        text: `No API key for ${PROVIDER_META[providerId].label}. Run 'WayCode: Set API Key'.`,
+      });
+      return undefined;
+    }
+    return new Agent(
+      createProvider(providerId, creds),
+      ToolRegistry.default(),
+      new ProjectContext(root),
+      this.memory,
+      cfg,
+      root
+    );
+  }
+
   private async handleSend(text: string): Promise<void> {
     if (!text.trim()) return;
 
@@ -106,48 +175,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       return;
     }
     const root = folder.uri.fsPath;
-    const agentConfig = {
-      model: this.config.model,
-      maxSteps: this.config.maxAgentSteps,
-      autoApproveReads: this.config.autoApproveReads,
-      autoApproveWrites: this.config.autoApproveFileEdits,
-      autoApproveCommands: this.config.autoApproveCommands,
-      language: this.config.language,
-    };
 
-    if (this.config.multiAgentEnabled) {
-      // Two roles, each possibly on a different provider/model.
-      const comm = await this.buildRole("communicator");
-      const coder = await this.buildRole("coder");
-      if ("error" in comm) return this.post({ type: "error", text: comm.error });
-      if ("error" in coder) return this.post({ type: "error", text: coder.error });
-      this.runner = new Orchestrator(
-        comm,
-        coder,
-        ToolRegistry.default(),
-        new ProjectContext(root),
-        this.memory,
-        agentConfig,
-        root
-      );
-    } else {
-      // Single agent using the base provider.
-      const providerId = this.config.provider;
-      const creds = await this.config.credentialsFor(providerId);
-      if (PROVIDER_META[providerId].requiresApiKey && !creds.apiKey) {
-        return this.post({
-          type: "error",
-          text: `No API key for ${PROVIDER_META[providerId].label}. Run 'WayCode: Set API Key'.`,
-        });
-      }
-      this.runner = new Agent(
-        createProvider(providerId, creds),
-        ToolRegistry.default(),
-        new ProjectContext(root),
-        this.memory,
-        agentConfig,
-        root
-      );
+    // Reuse the same runner across turns so the conversation keeps its history;
+    // rebuild only when the model/mode/config actually changed.
+    const signature = this.runnerSignature(root);
+    if (!this.runner || signature !== this.runnerSig) {
+      const built = await this.buildRunner(root);
+      if (!built) return; // an error was already posted
+      this.runner = built;
+      this.runnerSig = signature;
     }
 
     this.post({ type: "userMessage", text });

@@ -80,14 +80,17 @@ export class Orchestrator {
       // ---- Phase 2: coder does the engineering -----------------------------
       events.onPhase?.("coder", "👨‍💻 Coder bot is working on the code…");
       const coderEvents = this.wrapForCoder(events);
-      this.currentCoder = new Agent(
-        this.coder.provider,
-        this.tools,
-        this.project,
-        this.memory,
-        { ...this.config, model: this.coder.model },
-        this.workspaceRoot
-      );
+      // Reuse one coder across turns so follow-up requests keep prior context.
+      if (!this.currentCoder) {
+        this.currentCoder = new Agent(
+          this.coder.provider,
+          this.tools,
+          this.project,
+          this.memory,
+          { ...this.config, model: this.coder.model },
+          this.workspaceRoot
+        );
+      }
       const coderSummary = await this.currentCoder.run(spec, coderEvents);
 
       // ---- Phase 3: communicator explains the result -----------------------
