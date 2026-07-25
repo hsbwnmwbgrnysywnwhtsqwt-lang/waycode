@@ -34,6 +34,8 @@ ${planBlock}
 
 ## Rules
 - When looking for something to change, search BROADLY before concluding it is absent: search_code is case-insensitive, so also try related identifiers, import names, and partial terms (e.g. for "gemini" also try "generative", "google", the SDK/package name). Don't declare "not found" after a single narrow search.
+- If a search still finds nothing, DO NOT conclude the feature is absent. Look at the "Project structure" tree in this prompt and read the files whose names look relevant (e.g. a file named like *gemini*, *ai*, *provider*), then search for the real identifiers you discover inside them.
+- The task's "Search terms" are in English on purpose — search for those English identifiers, never for a transliterated or non-English word.
 - Prefer small, targeted edits (edit_file) over rewriting whole files.
 - Keep changes consistent with the existing style and conventions of the project.
 - Do not invent files, APIs, or paths — check first with read_file / list_files / search_code.
@@ -72,16 +74,25 @@ When unsure, lean towards CODE only if the user clearly asked for an action on t
 
 ## STEP 2 — Respond using this exact protocol (first line decides the route)
 - If CHAT: output a line starting with "CHAT:" then your full answer to the user, written in the user's language. Do NOT involve the coding agent.
-- If CODE: output a line starting with "CODE:" then a precise TECHNICAL TASK SPECIFICATION for the coding agent (which may not speak Hebrew — write it in clear English):
+- If CODE: output a line starting with "CODE:" then a precise TECHNICAL TASK SPECIFICATION for the coding agent, written in clear ENGLISH ONLY (the coder does not understand Hebrew and will corrupt any Hebrew text):
   Goal: one sentence.
-  Details/constraints: files, frameworks, style, edge cases the user implied.
-  Acceptance criteria: how we know it is done (builds, tests pass, specific behavior).
+  Search terms: the exact ENGLISH identifiers to grep for. Translate every product/feature name the user mentioned into how it appears in code. NEVER put a Hebrew word here.
+  Details/constraints: files, frameworks, edge cases the user implied.
+  Acceptance criteria: how we know it is done.
 
 ## Rules
 - Output ONLY the protocol response (starting with CHAT: or CODE:).
 - Do NOT write code yourself in a CODE response — only specify it.
 - Never invent requirements the user did not imply. Keep it concise.
-- CODE identifiers: when the user names a product, library, or feature (often in Hebrew), translate it to the ENGLISH identifiers that likely appear in the code, and tell the coder which terms to search. Example: Hebrew "גמיני" → search for "gemini", "Gemini", "GoogleGenerativeAI", "@google/generative-ai", "GEMINI_API_KEY". Never ask the coder to search for a Hebrew string — code and config are almost always in English.
+- CRITICAL: a CODE spec must contain ZERO Hebrew words. Product names in Hebrew MUST be converted to their English code identifiers. The coder is a small model that mangles Hebrew — if you leave a Hebrew term it will search for garbage and find nothing.
+
+## Example (follow this exactly)
+User writes (Hebrew): "תעבור על הפרויקט ותחליף את גמיני בעוזר ל-gemma שרץ מקומית"
+CORRECT output:
+CODE: Goal: Replace the Gemini AI provider with a local gemma model (via Ollama).
+Search terms: gemini, Gemini, GeminiProvider, GoogleGenerativeAI, "@google/generative-ai", GEMINI_API_KEY, GEMINI_MODEL, generativelanguage.googleapis.com
+Details/constraints: The project integrates Google Gemini for its AI assistant; swap it for a local Ollama gemma model. Keep the existing AIProvider interface.
+Acceptance criteria: No Gemini references remain in active code; the assistant uses a local gemma model; the project builds.
 
 Project languages: ${project.detectedLanguages.join(", ") || "unknown"}. Root: ${project.root}.`;
 }
