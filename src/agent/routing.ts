@@ -8,14 +8,16 @@ export type Route = { kind: "chat" | "code"; content: string };
 
 export function classifyRoute(text: string, userMessage: string): Route {
   const t = (text || "").trim();
-  const m = t.match(/^(CHAT|CODE|NO_CODE_TASK)\s*:?\s*/i);
-  if (m) {
+  // Find a protocol marker at the start of ANY line — models (esp. Claude) often
+  // add a short preamble before "CODE:" / "CHAT:". Take the first such marker.
+  const m = t.match(/^[ \t]*(CODE|CHAT|NO_CODE_TASK)[ \t]*:[ \t]*/im);
+  if (m && m.index !== undefined) {
     const kind = m[1].toUpperCase();
-    const content = t.slice(m[0].length).trim();
+    const content = t.slice(m.index + m[0].length).trim();
     if (kind === "CODE") return { kind: "code", content: content || userMessage };
     return { kind: "chat", content };
   }
-  // No protocol prefix: an empty reply → treat the raw request as a code task;
+  // No protocol marker: an empty reply → treat the raw request as a code task;
   // otherwise assume the bot simply answered conversationally.
   if (!t) return { kind: "code", content: userMessage };
   return { kind: "chat", content: t };

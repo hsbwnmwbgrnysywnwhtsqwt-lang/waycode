@@ -20,10 +20,24 @@ test("legacy NO_CODE_TASK prefix is treated as chat", () => {
   assert.equal(r.content, "this is just an explanation");
 });
 
-test("prefix matching is case-insensitive and colon-optional", () => {
-  const r = classifyRoute("code Goal: do the thing", "x");
+test("prefix matching is case-insensitive", () => {
+  const r = classifyRoute("code: Goal: do the thing", "x");
   assert.equal(r.kind, "code");
   assert.equal(r.content, "Goal: do the thing");
+});
+
+test("finds the CODE marker after a Hebrew/English preamble", () => {
+  const reply =
+    "עכשיו יש לי תמונה מלאה. אכין מפרט מדויק:\n\nCODE: Goal: replace gemini\nSearch terms: gemini, GeminiProvider";
+  const r = classifyRoute(reply, "תחליף גמיני");
+  assert.equal(r.kind, "code");
+  assert.match(r.content, /^Goal: replace gemini/);
+  assert.match(r.content, /Search terms/);
+});
+
+test("a chat answer that merely mentions 'code:' mid-sentence stays chat", () => {
+  const r = classifyRoute("Sure — here is the code: it lives in app.ts", "explain");
+  assert.equal(r.kind, "chat");
 });
 
 test("empty router reply falls back to a code task from the raw request", () => {
