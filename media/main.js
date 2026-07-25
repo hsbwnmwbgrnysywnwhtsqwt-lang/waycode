@@ -9,11 +9,16 @@
   const cancelBtn = document.getElementById("cancel");
   const newTaskBtn = document.getElementById("newTask");
   const statusEl = document.getElementById("status");
-  const planBtn = document.getElementById("planBtn");
-  const moonBtn = document.getElementById("moonBtn");
+  const modeBtn = document.getElementById("modeBtn");
+  const modeMenu = document.getElementById("modeMenu");
 
-  let planOn = false;
-  let moonOn = false;
+  const MODES = [
+    { id: "manual", icon: "✋", label: "Manual", desc: "Ask for approval before each edit" },
+    { id: "autoEdit", icon: "⟨⟩", label: "Auto-edit", desc: "Edit files automatically; ask before commands" },
+    { id: "plan", icon: "📋", label: "Plan", desc: "Explore and present a plan before editing" },
+    { id: "auto", icon: "🌙", label: "Auto", desc: "Auto-approve everything (no questions)" },
+  ];
+  let currentMode = "manual";
 
   /** In-flight tool cards, keyed by tool-call id, so we can update them in place. */
   const toolCards = {};
@@ -284,14 +289,57 @@
   newTaskBtn.addEventListener("click", function () {
     vscode.postMessage({ type: "newTask" });
   });
-  planBtn.addEventListener("click", function () {
-    vscode.postMessage({ type: "setPlan", value: !planOn });
+  function renderModeMenu() {
+    modeMenu.innerHTML = "";
+    MODES.forEach(function (m) {
+      const item = el("div", "mode-item" + (m.id === currentMode ? " active" : ""));
+      const body = el("div", "mode-body");
+      body.appendChild(el("div", "mode-label", m.icon + "  " + m.label));
+      body.appendChild(el("div", "mode-desc", m.desc));
+      item.appendChild(body);
+      item.appendChild(el("span", "mode-check", m.id === currentMode ? "✓" : ""));
+      item.addEventListener("click", function () {
+        vscode.postMessage({ type: "setMode", mode: m.id });
+        hideModeMenu();
+      });
+      modeMenu.appendChild(item);
+    });
+  }
+  function hideModeMenu() {
+    modeMenu.classList.add("hidden");
+  }
+  function toggleModeMenu() {
+    if (modeMenu.classList.contains("hidden")) {
+      renderModeMenu();
+      modeMenu.classList.remove("hidden");
+    } else {
+      hideModeMenu();
+    }
+  }
+  function updateModeButton() {
+    let m = MODES[0];
+    for (let i = 0; i < MODES.length; i++) if (MODES[i].id === currentMode) m = MODES[i];
+    modeBtn.textContent = m.icon + " " + m.label + " ▾";
+    modeBtn.classList.toggle("active", currentMode !== "manual");
+  }
+  function cycleMode() {
+    let idx = 0;
+    for (let i = 0; i < MODES.length; i++) if (MODES[i].id === currentMode) idx = i;
+    vscode.postMessage({ type: "setMode", mode: MODES[(idx + 1) % MODES.length].id });
+  }
+
+  modeBtn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    toggleModeMenu();
   });
-  moonBtn.addEventListener("click", function () {
-    vscode.postMessage({ type: "setMoon", value: !moonOn });
-  });
+  document.addEventListener("click", hideModeMenu);
 
   inputEl.addEventListener("keydown", function (e) {
+    if (e.key === "Tab" && e.shiftKey) {
+      e.preventDefault();
+      cycleMode();
+      return;
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       send();
@@ -357,14 +405,9 @@
       case "status":
         statusEl.textContent = msg.text;
         break;
-      case "planState":
-        planOn = Boolean(msg.value);
-        planBtn.classList.toggle("active", planOn);
-        break;
-      case "moonState":
-        moonOn = Boolean(msg.value);
-        moonBtn.classList.toggle("active", moonOn);
-        moonBtn.textContent = moonOn ? "🌕" : "🌙";
+      case "modeState":
+        currentMode = msg.mode || "manual";
+        updateModeButton();
         break;
       case "userMessage":
         addMessage("user", msg.text);

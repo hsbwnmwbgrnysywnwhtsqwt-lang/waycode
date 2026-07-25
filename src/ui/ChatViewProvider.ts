@@ -83,12 +83,8 @@ export class ChatController {
         this.runner?.reset();
         this.post({ type: "cleared" });
         break;
-      case "setPlan":
-        this.policy.planMode = Boolean(msg.value);
-        this.broadcastState();
-        break;
-      case "setMoon":
-        await this.setNoQuestions(Boolean(msg.value));
+      case "setMode":
+        await this.setMode(String(msg.mode));
         break;
       case "ready":
         this.broadcastState();
@@ -96,32 +92,47 @@ export class ChatController {
     }
   }
 
-  /** The moon toggle: on = auto-approve everything ("no questions"). */
-  private async setNoQuestions(on: boolean): Promise<void> {
+  /** Derive the current mode name from the live policy. */
+  private currentMode(): "manual" | "autoEdit" | "plan" | "auto" {
+    if (this.policy.planMode) return "plan";
+    if (this.policy.autoApproveWrites && this.policy.autoApproveCommands) return "auto";
+    if (this.policy.autoApproveWrites) return "autoEdit";
+    return "manual";
+  }
+
+  /** Apply a mode (Manual / Auto-edit / Plan / Auto) to the live policy. */
+  private async setMode(mode: string): Promise<void> {
+    this.policy.planMode = mode === "plan";
+    const writes = mode === "autoEdit" || mode === "auto";
+    const commands = mode === "auto";
     this.policy.autoApproveReads = true;
-    this.policy.autoApproveWrites = on;
-    this.policy.autoApproveCommands = on;
-    await this.config.setApprovalMode({ reads: true, fileEdits: on, commands: on });
+    this.policy.autoApproveWrites = writes;
+    this.policy.autoApproveCommands = commands;
+    await this.config.setApprovalMode({ reads: true, fileEdits: writes, commands });
     this.broadcastState();
   }
 
   private broadcastState(): void {
     this.post({ type: "status", text: this.statusLine() });
-    this.post({ type: "planState", value: this.policy.planMode });
-    this.post({ type: "moonState", value: this.policy.autoApproveWrites && this.policy.autoApproveCommands });
+    this.post({ type: "modeState", mode: this.currentMode() });
   }
 
   private statusLine(): string {
-    const mode = this.policy.planMode ? "  ·  📋 plan" : "";
-    const moon = this.policy.autoApproveWrites && this.policy.autoApproveCommands ? "  ·  🌙 no-ask" : "";
+    const modeLabels: Record<string, string> = {
+      manual: "✋ manual",
+      autoEdit: "⟨⟩ auto-edit",
+      plan: "📋 plan",
+      auto: "🌙 auto",
+    };
+    const mode = `  ·  ${modeLabels[this.currentMode()]}`;
     const lang = this.config.language !== "auto" ? `  ·  🌐 ${this.config.language}` : "";
     if (this.config.multiAgentEnabled) {
       const comm = this.config.roleModel("communicator");
       const coder = this.config.roleModel("coder");
-      return `🗣️ ${comm}  →  👨‍💻 ${coder}${mode}${moon}${lang}`;
+      return `🗣️ ${comm}  →  👨‍💻 ${coder}${mode}${lang}`;
     }
     const p = this.config.provider;
-    return `${PROVIDER_META[p].label} · ${this.config.model}${mode}${moon}${lang}`;
+    return `${PROVIDER_META[p].label} · ${this.config.model}${mode}${lang}`;
   }
 
   private async buildRole(role: AgentRole): Promise<RoleModel | { error: string }> {
@@ -300,8 +311,10 @@ export class ChatController {
   <div class="composer">
     <textarea id="input" rows="3" placeholder="Ask WayCode…  (Enter to send, Shift+Enter = newline)"></textarea>
     <div class="composer-actions">
-      <button id="planBtn" class="toggle" title="Plan mode: investigate and propose a plan without making changes">📋 Plan</button>
-      <button id="moonBtn" class="toggle" title="No-questions mode: auto-approve every action">🌙</button>
+      <div class="mode-wrap">
+        <button id="modeBtn" class="toggle" title="Switch mode (Shift+Tab)">⚡ Mode ▾</button>
+        <div id="modeMenu" class="mode-menu hidden"></div>
+      </div>
       <span class="spacer"></span>
       <button id="newTask" title="Start a new task">New task</button>
       <button id="send" class="primary">Send</button>
