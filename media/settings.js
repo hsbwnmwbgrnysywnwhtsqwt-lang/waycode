@@ -76,8 +76,31 @@
   function render() {
     formEl.innerHTML = "";
 
-    // General
-    const gen = section("General", "The default provider and model when multi-agent is off.");
+    let mode = data.multiAgent ? "team" : "single";
+
+    // Setup — choose one model or a team of two.
+    const setup = section("Setup", "Choose how WayCode works.");
+    const choice = el("div", "choice");
+    const singleOpt = el("button", "choice-opt");
+    singleOpt.appendChild(el("div", "choice-title", "🧠 One model"));
+    singleOpt.appendChild(el("div", "choice-desc", "A single model does everything."));
+    const teamOpt = el("button", "choice-opt");
+    teamOpt.appendChild(el("div", "choice-title", "👥 Team of two"));
+    teamOpt.appendChild(el("div", "choice-desc", "A language bot talks to you + a coder bot writes code."));
+    choice.appendChild(singleOpt);
+    choice.appendChild(teamOpt);
+    setup.appendChild(choice);
+    const langSel = select(
+      data.languages.map(function (l) {
+        return { value: l, label: l === "auto" ? "Auto (match me)" : l };
+      }),
+      data.language
+    );
+    setup.appendChild(row("Reply language", langSel));
+    formEl.appendChild(setup);
+
+    // Single-model block
+    const gen = section("Model", "The single model that handles everything.");
     const providerSel = select(providerOptions(false), data.provider);
     const modelWrap = el("div");
     let modelCtl = modelField(data.provider, data.model);
@@ -89,22 +112,13 @@
     });
     gen.appendChild(row("Provider", providerSel));
     gen.appendChild(row("Model", modelWrap));
-    const langSel = select(
-      data.languages.map(function (l) {
-        return { value: l, label: l === "auto" ? "Auto (match me)" : l };
-      }),
-      data.language
-    );
-    gen.appendChild(row("Reply language", langSel));
     formEl.appendChild(gen);
 
-    // Multi-agent
+    // Team block
     const ma = section(
-      "Multi-agent roles",
-      "A language bot talks to you (e.g. in Hebrew) and a coder bot writes the code — each on its own model."
+      "Team roles",
+      "The language bot understands you (great for Hebrew); the coder bot writes the code."
     );
-    const maToggle = checkbox(data.multiAgent);
-    ma.appendChild(row("Enable multi-agent", maToggle));
 
     function roleBlock(roleKey, title) {
       const wrap = el("div", "role");
@@ -176,6 +190,23 @@
       });
     formEl.appendChild(keys);
 
+    // Toggle which setup is shown.
+    function updateVisibility() {
+      gen.style.display = mode === "single" ? "" : "none";
+      ma.style.display = mode === "team" ? "" : "none";
+      singleOpt.classList.toggle("active", mode === "single");
+      teamOpt.classList.toggle("active", mode === "team");
+    }
+    singleOpt.addEventListener("click", function () {
+      mode = "single";
+      updateVisibility();
+    });
+    teamOpt.addEventListener("click", function () {
+      mode = "team";
+      updateVisibility();
+    });
+    updateVisibility();
+
     // Save bar
     const bar = el("div", "savebar");
     const saveBtn = el("button", "primary", "Save settings");
@@ -186,7 +217,7 @@
           provider: providerSel.value,
           model: modelCtl.value,
           language: langSel.value,
-          multiAgent: maToggle.checked,
+          multiAgent: mode === "team",
           roles: { communicator: commBlock._get(), coder: coderBlock._get() },
           approval: { reads: apReads.checked, fileEdits: apEdits.checked, commands: apCmds.checked },
           ollamaBaseUrl: ollamaUrl.value,
