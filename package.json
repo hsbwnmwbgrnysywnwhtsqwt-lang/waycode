@@ -102,6 +102,17 @@
         "command": "waycode.askSelection",
         "title": "WayCode: Ask About Selection",
         "category": "WayCode"
+      },
+      {
+        "command": "waycode.history",
+        "title": "WayCode: Conversation History",
+        "category": "WayCode",
+        "icon": "$(history)"
+      },
+      {
+        "command": "waycode.editContext",
+        "title": "WayCode: Edit Project Context File",
+        "category": "WayCode"
       }
     ],
     "menus": {
@@ -215,7 +226,7 @@
         "waycode.roles.communicator.model": {
           "type": "string",
           "default": "",
-          "description": "Model id for the communicator role. Empty = the provider's default model. Pick a model strong at natural language (e.g. Hebrew)."
+          "description": "Model id for the communicator role. Empty = the provider's default model. Pick a model strong at natural language (e.g. Hebrew) — a local Ollama model like gemma2:9b works well and runs on your machine."
         },
         "waycode.roles.coder.provider": {
           "type": "string",

@@ -9,6 +9,7 @@ import { Config, AgentRole } from "../config";
 import { createProvider, PROVIDER_META, ProviderId } from "../providers/ProviderFactory";
 import { ToolPreview } from "../tools/Tool";
 import { safeResolve, toRelative } from "../tools/pathUtils";
+import { History, Session } from "../memory/History";
 
 /** Anything the chat can drive: a single Agent or the multi-agent Orchestrator. */
 interface Runner {
@@ -37,10 +38,15 @@ export class ChatController {
     planMode: false,
   };
 
+  /** The conversation currently being recorded, and the last assistant reply. */
+  private session?: Session;
+  private lastAssistant = "";
+
   constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly memory: Memory,
-    private readonly config: Config
+    private readonly config: Config,
+    private readonly history: History
   ) {}
 
   /** Attach a webview (sidebar or panel). Returns a disposable-style unbinder. */
@@ -96,8 +102,13 @@ export class ChatController {
         this.runner?.cancel();
         break;
       case "newTask":
+        await this.finalizeSession();
         this.runner?.reset();
+        this.session = undefined;
         this.post({ type: "cleared" });
+        break;
+      case "history":
+        await this.showHistory();
         break;
       case "setMode":
         await this.setMode(String(msg.mode));
@@ -190,7 +201,7 @@ export class ChatController {
       if (this.config.roleProvider("coder") === "claude-cli") {
         this.post({
           type: "error",
-          text: "Claude CLI can't be the coder — it's text-only and has no WayCode tools, so it times out. In Settings, set the coder to Ollama (e.g. qwen2.5-coder) or the Anthropic API. Claude CLI is great as the communicator.",
+          text: "Claude CLI can't be the coder — it's text-only and has no WayCode tools, so it times out. In Settings, set the coder to Ollama (e.g. qwen2.5-coder) or the Anthropic API. For the communicator, a local Ollama model like gemma2:9b works great.",
         });
         return undefined;
       }
@@ -259,12 +270,21 @@ export class ChatController {
       this.runnerSig = signature;
     }
 
+    // Record the turn in the per-project conversation history.
+    if (!this.session) this.session = History.newSession(root);
+    if (!this.session.title) this.session.title = text.slice(0, 80) || "(context)";
+    this.session.messages.push({ role: "user", content: text });
+    this.lastAssistant = "";
+
     this.post({ type: "userMessage", text });
     if (context.length) this.post({ type: "log", text: `📎 Attached: ${context.join(", ")}` });
     this.post({ type: "running", value: true });
 
     const events: AgentEvents = {
-      onAssistantText: (t) => this.post({ type: "assistant", text: t }),
+      onAssistantText: (t) => {
+        this.lastAssistant = t;
+        this.post({ type: "assistant", text: t });
+      },
       onThinking: (t) => this.post({ type: "thinking", text: t }),
       onToolStart: (call) =>
         this.post({ type: "toolStart", id: call.id, name: call.name, input: call.input }),
@@ -280,11 +300,64 @@ export class ChatController {
       onLog: (m) => this.post({ type: "log", text: m }),
       requestApproval: (preview) => this.askApproval(preview),
       onError: (m) => this.post({ type: "error", text: m }),
-      onDone: () => this.post({ type: "running", value: false }),
+      onDone: () => {
+        this.post({ type: "running", value: false });
+        void this.recordAssistant();
+      },
       onPhase: (name, label) => this.post({ type: "phase", name, label }),
     };
 
     await this.runner.run(modelText, events);
+  }
+
+  /** Append the assistant reply to the current session and persist it. */
+  private async recordAssistant(): Promise<void> {
+    if (!this.session) return;
+    if (this.lastAssistant.trim()) {
+      this.session.messages.push({ role: "assistant", content: this.lastAssistant });
+    }
+    this.session.ts = Date.now();
+    await this.history.save(this.session);
+  }
+
+  private async finalizeSession(): Promise<void> {
+    if (this.session) await this.history.save(this.session);
+  }
+
+  /** Show past conversations for this workspace and load the chosen one. */
+  private async showHistory(): Promise<void> {
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    if (!folder) return;
+    const sessions = this.history.list(folder.uri.fsPath);
+    if (!sessions.length) {
+      this.post({ type: "log", text: "No saved conversations yet for this project." });
+      return;
+    }
+    const pick = await vscode.window.showQuickPick(
+      sessions.map((s) => ({
+        label: s.title || "(untitled)",
+        description: new Date(s.ts).toLocaleString(),
+        detail: `${s.messages.length} messages`,
+        id: s.id,
+      })),
+      { title: "WayCode: Conversation history", matchOnDescription: true }
+    );
+    if (!pick) return;
+    this.loadSession(pick.id);
+  }
+
+  private loadSession(id: string): void {
+    const s = this.history.get(id);
+    if (!s) return;
+    void this.finalizeSession();
+    this.runner?.reset();
+    this.session = s;
+    this.post({ type: "restore", messages: s.messages });
+  }
+
+  /** Public entry for the History command. */
+  openHistory(): void {
+    void this.showHistory();
   }
 
   /** Read attached files and format them as a context block for the model. */
@@ -377,6 +450,7 @@ export class ChatController {
     <textarea id="input" rows="3" placeholder="Ask WayCode…  (Enter to send, Shift+Enter = newline)"></textarea>
     <div class="composer-actions">
       <button id="addContext" class="toggle" title="Attach files as context">➕</button>
+      <button id="historyBtn" class="toggle" title="Conversation history">🕘</button>
       <button id="settingsBtn" class="toggle" title="WayCode settings">⚙</button>
       <div class="mode-wrap">
         <button id="modeBtn" class="toggle" title="Switch mode (Shift+Tab)">⚡ Mode ▾</button>

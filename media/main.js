@@ -313,6 +313,12 @@
       vscode.postMessage({ type: "openSettings" });
     });
   }
+  const historyBtn = document.getElementById("historyBtn");
+  if (historyBtn) {
+    historyBtn.addEventListener("click", function () {
+      vscode.postMessage({ type: "history" });
+    });
+  }
 
   sendBtn.addEventListener("click", send);
   cancelBtn.addEventListener("click", function () {
@@ -487,6 +493,13 @@
         messagesEl.innerHTML = "";
         showWelcome();
         addLog("Started a new task.");
+        break;
+      case "restore":
+        messagesEl.innerHTML = "";
+        (msg.messages || []).forEach(function (m) {
+          addMessage(m.role === "user" ? "user" : "assistant", m.content);
+        });
+        addLog("↩︎ Loaded a saved conversation.");
         break;
       case "focusInput":
         inputEl.focus();

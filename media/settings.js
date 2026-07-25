@@ -117,7 +117,7 @@
     // Team block
     const ma = section(
       "Team roles",
-      "Communicator: talks to you (great for Hebrew) — Claude CLI shines here. " +
+      "Communicator: talks to you (great for Hebrew) — a local Ollama model like gemma2:9b runs on your machine, no key, no waiting on the cloud. " +
         "Coder: must support tools to edit files — use Ollama (e.g. qwen2.5-coder) or the Anthropic API. " +
         "Claude CLI cannot be the coder (it is text-only and will time out)."
     );

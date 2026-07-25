@@ -105,11 +105,16 @@ dependencies — and in CI (GitHub Actions) on Node 18 and 20.
 | Ollama    | `llama3.1` (local)       | ❌           |
 | Claude Code (CLI) | `sonnet`         | ❌ (uses your Claude subscription) |
 
+**Fully local setup (no API key, no cloud):** point both roles at **Ollama**. Use a
+language-strong local model such as **`gemma2:9b`** as the **communicator** (excellent
+Hebrew, runs on your machine) and a code-strong local model such as **`qwen2.5-coder`**
+as the **coder**. Nothing leaves your machine and no keys are needed.
+
 **Claude Code CLI provider (no API key):** if you have the `claude` CLI installed
-and signed in, pick provider **`claude-cli`** to use Claude through your existing
-subscription — no key needed. It's a text backend (no WayCode tool-calling), so it
-shines as the **communicator** role: pair Claude (excellent Hebrew, free via your
-subscription) as the language bot with a local Ollama model as the coder.
+and signed in, you can instead pick provider **`claude-cli`** to use Claude through your
+existing subscription. It's a text backend (no WayCode tool-calling), so it can only fill
+the **communicator** role — but note it makes a network call and can be slow; the local
+`gemma2:9b` communicator above avoids that.
 
 ---
 
@@ -151,7 +156,7 @@ Turn it on with **WayCode: Configure Agent Roles**. You pick a model for each ro
         │
         ▼
   ┌─────────────────────┐   Communicator bot
-  │ understands intent, │   → strong at language (e.g. Claude / Gemini)
+  │ understands intent, │   → strong at language (e.g. gemma2 via Ollama — runs locally)
   │ writes a task spec  │
   └─────────────────────┘
         │  precise English task spec

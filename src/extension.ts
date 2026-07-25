@@ -1,6 +1,8 @@
 import * as vscode from "vscode";
 import { ChatViewProvider, ChatController, openChatPanel } from "./ui/ChatViewProvider";
 import { openSettingsPanel } from "./ui/SettingsPanel";
+import { contextFilePath, CONTEXT_TEMPLATE } from "./context/contextFile";
+import { History } from "./memory/History";
 import { Memory } from "./memory/Memory";
 import { Config } from "./config";
 import { ProviderId, PROVIDER_META } from "./providers/ProviderFactory";
@@ -9,7 +11,8 @@ import { toRelative } from "./tools/pathUtils";
 export function activate(context: vscode.ExtensionContext): void {
   const memory = new Memory(context.workspaceState);
   const config = new Config(context.secrets);
-  const controller = new ChatController(context.extensionUri, memory, config);
+  const history = new History(context.globalState);
+  const controller = new ChatController(context.extensionUri, memory, config, history);
   const chat = new ChatViewProvider(controller);
 
   context.subscriptions.push(
@@ -27,6 +30,23 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("waycode.openPanel", () => openChatPanel(context.extensionUri, controller)),
 
     vscode.commands.registerCommand("waycode.openSettings", () => openSettingsPanel(context.extensionUri, config)),
+
+    vscode.commands.registerCommand("waycode.history", () => controller.openHistory()),
+
+    vscode.commands.registerCommand("waycode.editContext", async () => {
+      const folder = vscode.workspace.workspaceFolders?.[0];
+      if (!folder) {
+        vscode.window.showWarningMessage("WayCode: open a folder first.");
+        return;
+      }
+      const uri = vscode.Uri.file(contextFilePath(folder.uri.fsPath));
+      try {
+        await vscode.workspace.fs.stat(uri);
+      } catch {
+        await vscode.workspace.fs.writeFile(uri, Buffer.from(CONTEXT_TEMPLATE, "utf8"));
+      }
+      await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(uri));
+    }),
 
     vscode.commands.registerCommand("waycode.newTask", async () => {
       await vscode.commands.executeCommand("waycode.chatView.focus");

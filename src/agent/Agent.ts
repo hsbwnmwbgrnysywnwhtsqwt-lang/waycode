@@ -10,6 +10,7 @@ import { ProjectContext } from "../context/ProjectContext";
 import { Memory } from "../memory/Memory";
 import { buildSystemPrompt } from "./prompts";
 import { trimHistory } from "./history";
+import { readContextFile } from "../context/contextFile";
 
 /** Events the agent emits so the UI can render progress in real time. */
 export interface AgentEvents {
@@ -83,6 +84,8 @@ export class Agent {
     let inputTokens = 0;
     let outputTokens = 0;
     const summary = await this.project.summarize();
+    const contextFile = await readContextFile(this.workspaceRoot);
+    const memoryBlock = [this.memory.render(), contextFile].filter(Boolean).join("\n\n");
 
     this.history.push({ role: "user", content: userMessage });
 
@@ -101,7 +104,7 @@ export class Agent {
 
         // Read plan mode live so a mid-conversation toggle takes effect at once.
         const planMode = this.config.policy.planMode;
-        const system = buildSystemPrompt(summary, this.memory.render(), this.config.language, planMode);
+        const system = buildSystemPrompt(summary, memoryBlock, this.config.language, planMode);
         const toolSchemas = planMode ? this.tools.readOnlySchemas() : this.tools.schemas();
 
         const response = await this.provider.complete({
