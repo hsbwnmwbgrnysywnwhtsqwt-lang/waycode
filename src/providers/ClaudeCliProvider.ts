@@ -60,17 +60,24 @@ export class ClaudeCliProvider implements AIProvider {
     );
     await fs.writeFile(sysFile, system, "utf8");
 
-    // Keep the CLI fast and non-agentic for use as a text backend:
+    // Keep the CLI fast and non-agentic for use as a TEXT backend:
     // --strict-mcp-config (no --mcp-config) disables ALL external MCP servers
     //   (e.g. Gmail/Calendar/Drive), which otherwise stall startup.
-    // --disable-slash-commands skips skill loading. OAuth/subscription auth is
-    //   kept (we deliberately avoid --bare, which would require an API key).
+    // --disable-slash-commands skips skill loading.
+    // --tools "" disables Claude Code's own built-in tools (Read/Bash/Glob/…) —
+    //   without this, the CLI goes fully agentic and explores the project on its
+    //   own, which is slow/unpredictable and can exceed our timeout. WayCode
+    //   already gives the model the project tree in the system prompt; it should
+    //   answer from that, not go re-discover the repo itself.
+    // OAuth/subscription auth is kept (we deliberately avoid --bare).
     const args = [
       "-p",
       "--output-format",
       "json",
       "--strict-mcp-config",
       "--disable-slash-commands",
+      "--tools",
+      "",
       "--system-prompt-file",
       sysFile,
     ];

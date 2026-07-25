@@ -415,7 +415,13 @@ export class ChatController {
 
   private post(message: unknown): void {
     for (const webview of this.webviews) {
-      webview.postMessage(message);
+      // A closed panel/view can still be in the set for a moment; postMessage
+      // on a disposed webview throws. Drop it instead of crashing the extension.
+      try {
+        void webview.postMessage(message);
+      } catch {
+        this.webviews.delete(webview);
+      }
     }
   }
 
@@ -478,6 +484,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   resolveWebviewView(view: vscode.WebviewView): void {
     this.view = view;
     this.controller.bind(view.webview);
+    view.onDidDispose(() => {
+      this.controller.unbind(view.webview);
+      if (this.view === view) this.view = undefined;
+    });
   }
 
   reveal(): void {
