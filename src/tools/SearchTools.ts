@@ -1,6 +1,21 @@
 import { Tool, ToolContext, ToolRunResult } from "./Tool";
 import { runCommand } from "./exec";
 
+/**
+ * Build the shell search command. Prefers ripgrep; falls back to `grep -E`.
+ * The `-E` is essential: VS Code's extension host often has no `rg` on PATH, and
+ * plain `grep` (BRE) treats `(a|b)` alternation as a literal string — silently
+ * finding nothing. `-E` (ERE) makes the fallback handle regex like ripgrep does.
+ */
+export function buildSearchCommand(pattern: string, glob: string | undefined, caseSensitive: boolean): string {
+  const caseFlag = caseSensitive ? "" : "-i ";
+  const escaped = pattern.replace(/'/g, "'\\''");
+  const globArg = glob ? `-g '${glob.replace(/'/g, "'\\''")}'` : "";
+  const rg = `rg -n --no-heading --color never ${caseFlag}${globArg} -- '${escaped}' .`;
+  const grep = `grep -rnE ${caseFlag}--exclude-dir=node_modules --exclude-dir=.git -- '${escaped}' .`;
+  return `${rg} || ${grep}`;
+}
+
 /** Search file contents across the workspace. */
 export class GrepTool implements Tool {
   readonly name = "search_code";
@@ -23,13 +38,9 @@ export class GrepTool implements Tool {
   async run(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolRunResult> {
     const pattern = String(input.pattern ?? "");
     const glob = input.glob ? String(input.glob) : undefined;
-    const caseFlag = input.case_sensitive ? "" : "-i ";
-    const escaped = pattern.replace(/'/g, "'\\''");
-    // Prefer ripgrep if available, otherwise fall back to grep.
-    const globArg = glob ? `-g '${glob.replace(/'/g, "'\\''")}'` : "";
-    const rg = `rg -n --no-heading --color never ${caseFlag}${globArg} -- '${escaped}' . || grep -rn ${caseFlag}--exclude-dir=node_modules --exclude-dir=.git -- '${escaped}' .`;
+    const command = buildSearchCommand(pattern, glob, Boolean(input.case_sensitive));
     ctx.log(`🔍 search "${pattern}"`);
-    const res = await runCommand(rg, ctx.workspaceRoot, 60_000);
+    const res = await runCommand(command, ctx.workspaceRoot, 60_000);
     const out = res.stdout.trim() || "(no matches)";
     return { output: out };
   }
