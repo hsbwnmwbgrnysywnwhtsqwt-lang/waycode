@@ -2,17 +2,29 @@
   "name": "waycode",
   "displayName": "WayCode",
   "description": "Professional AI coding agent for VS Code — understands natural language (including Hebrew), whole projects, writes and edits code, runs tests, and fixes itself.",
-  "version": "0.1.0",
-  "publisher": "waycode",
+  "version": "1.0.0",
+  "publisher": "tools-mishmish",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hsbwnmwbgrnysywnwhtsqwt-lang/waycode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hsbwnmwbgrnysywnwhtsqwt-lang/waycode/issues"
+  },
+  "homepage": "https://github.com/hsbwnmwbgrnysywnwhtsqwt-lang/waycode#readme",
+  "icon": "media/logo.png",
+  "galleryBanner": {
+    "color": "#1A1A20",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
     "AI",
-    "Machine Learning",
-    "Programming Languages",
-    "Other"
+    "Chat",
+    "Machine Learning"
   ],
   "keywords": [
     "ai",

@@ -1,212 +1,297 @@
+<div align="center">
+
+<img src="media/logo.png" alt="WayCode" width="160" />
+
 # WayCode
 
-**WayCode** is a professional AI coding agent for Visual Studio Code — a senior-engineer-style assistant in the spirit of Claude Code / Cursor / Codex. It understands natural language (including **Hebrew**), reads and reasons about whole projects, writes and edits code, runs tests, and fixes its own mistakes.
+**An AI coding agent that lives in your VS Code sidebar — talks to you in your language, works on your whole project, and never changes a file behind your back.**
 
-> Status: **v0.1 MVP** — a working, extensible foundation. Architected to grow into a real product.
+[![VS Code](https://img.shields.io/badge/VS%20Code-%5E1.85-007ACC?logo=visualstudiocode&logoColor=white)](https://code.visualstudio.com/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.4-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-1.0.0-1A1A20.svg)](CHANGELOG.md)
 
----
-
-## ✨ Features
-
-- **Chat sidebar _and_ full editor tab** — work in the WayCode sidebar, or click the
-  pop-out button (or run **WayCode: Open in Editor Tab**) for a full-window chat.
-  Both share one conversation.
-- **Modes menu** — a pill in the composer (or **Shift+Tab** to cycle) to switch how the
-  agent acts:
-  - **✋ Manual** — ask before each edit
-  - **⟨⟩ Auto-edit** — edit files automatically; ask before commands
-  - **📋 Plan** — explore read-only and present a step-by-step plan, no changes
-  - **🌙 Auto** — auto-approve everything (no questions)
-- **Attach files as context** — a ➕ button in the composer (or right-click a file →
-  *Add File to Context*) attaches files as chips; their contents ride along with your
-  next message so the agent focuses on exactly what you mean.
-- **Visual settings page** — **WayCode: Settings** (⚙ in the chat, sidebar header, or
-  Command Palette) opens a full page to set provider, models, multi-agent roles,
-  **reply language**, approvals, endpoints, and API keys — no digging through VS Code
-  settings.
-- **Top-bar button** — a WayCode icon in the editor title bar (like Claude/Codex) opens
-  the chat in an editor tab.
-- **Command Palette** integration (`WayCode: …`).
-- **Agent engine** that plans → acts → verifies → fixes in a loop.
-- **Multi-agent pipeline (role-based)** — an optional mode where a **communicator bot** (strong at your language, e.g. Hebrew) understands you and explains results, while a separate **coder bot** (strong at code, e.g. Qwen Coder) does the engineering. Each role runs on its own provider/model.
-- **Pluggable AI providers** — switch between **Anthropic (Claude)**, **OpenAI (GPT)**, and **local models via Ollama** with one command.
-- **Tool system** — read/create/edit files, search code, run the terminal, git, tests, linters, and an error analyzer.
-- **Change previews & approval** — every write/command is shown as a diff or command and requires your approval before it runs.
-- **Memory & context** — remembers project structure, pinned files, decisions, and preferences per workspace.
+</div>
 
 ---
 
-## 🏗 Architecture
+## What is WayCode?
+
+WayCode is a VS Code extension that turns a chat panel into a real coding agent. You describe what you
+want — in English, Hebrew, Arabic, or anything else — and it reads your repository, searches the code,
+writes and edits files, runs your tests and linter, reads the errors, and fixes them. Every risky step
+shows you a **diff or the exact command** and waits for your approval, unless you tell it not to.
+
+It is **provider-agnostic**: Claude, GPT, a local Ollama model, or your existing Claude Code CLI
+subscription. And it can split the work between **two models** — one that's great at your language and
+one that's great at code.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  You: "תוסיף בדיקות ל-History ותריץ אותן"                    │
+├──────────────────────────────────────────────────────────────┤
+│  🔍 search_code  /class History/            → 3 matches      │
+│  📖 read_file    src/memory/History.ts      → 62 lines       │
+│  ✅ create_file  src/test/history.test.ts   → [diff] approve?│
+│  🧪 run_tests    npm test                   → 14 pass        │
+├──────────────────────────────────────────────────────────────┤
+│  WayCode: הוספתי 5 בדיקות ל-History. כל 14 הבדיקות עוברות.   │
+└──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Highlights
+
+| | |
+|---|---|
+| 🌍 **Speaks your language** | Write in Hebrew (or any language) — WayCode understands, and replies in the same language. Chat is laid out RTL automatically while code stays LTR. |
+| 🧠 **Whole-project awareness** | Every task starts with a snapshot of your file tree, manifests, and detected languages — no need to paste files. |
+| 🔁 **Plan → act → verify → fix** | The agent doesn't stop at a suggestion. It edits, runs the build/tests, reads the failures, and iterates. |
+| 🤝 **Two-model pipeline** | An optional *communicator* bot (language-strong, can run locally) talks to you; a *coder* bot (code-strong) does the engineering. |
+| 🛡️ **You stay in control** | Diff previews before writes, the exact command before execution, four approval modes, and a read-only Plan mode. |
+| 🔌 **Any provider** | Anthropic, OpenAI (and any OpenAI-compatible endpoint), local Ollama, or the Claude Code CLI — no API key needed for the last two. |
+| 🚫 **No hallucinated success** | In multi-agent mode the explanation is built from the coder's *actual* tool calls, so "all done ✅" can't be invented. |
+| 💾 **Remembers** | Per-project context file, per-workspace memory, and searchable conversation history. |
+
+---
+
+## Quick start
+
+1. **Install** — from the Marketplace, or build a `.vsix` locally (see [Development](#development)).
+2. **Open the panel** — click the WayCode icon in the Activity Bar, or run `WayCode: Open Chat`.
+3. **Pick a model** — `WayCode: Select Model / Provider`.
+4. **Add a key if needed** — `WayCode: Set API Key` (stored in VS Code Secret Storage, never in settings).
+5. **Ask for something** — "add input validation to the login form and run the tests".
+
+<details>
+<summary><b>Zero-cost setup (no API key)</b></summary>
+
+Two ways to run WayCode without paying per token:
+
+- **Local Ollama** — install [Ollama](https://ollama.com), pull a model (`ollama pull qwen2.5-coder`,
+  `ollama pull gemma2`), then choose provider *Ollama (local)*. The model picker lists what you have
+  installed. Everything stays on your machine.
+- **Claude Code CLI** — if you already have a Claude subscription with the `claude` CLI installed,
+  choose provider *Claude Code (CLI, no key)*. Note: the CLI provider is text-only, so use it as the
+  **communicator** or in single-agent chat — it cannot drive WayCode's tools as the coder.
+
+</details>
+
+---
+
+## How it works
+
+### Single-agent mode (default)
+
+One model does everything, in a bounded tool-use loop:
+
+```
+   your message
+        │
+        ▼
+  ┌───────────┐   tool call    ┌────────────────────────┐
+  │   model   │ ─────────────▶ │ read · search · edit    │
+  │  (agent)  │ ◀───────────── │ terminal · tests · lint │
+  └───────────┘    result      └────────────────────────┘
+        │            ▲                    │
+        │            └── approval ────────┘  (diff / command shown to you)
+        ▼
+   final answer            up to `maxAgentSteps` iterations (default 25)
+```
+
+If the model announces a plan but calls no tool, WayCode detects the stall and nudges it to *act* —
+so you don't get a to-do list instead of working code.
+
+### Multi-agent mode (`waycode.multiAgent.enabled`)
+
+Two models, each doing what it's best at:
+
+```
+  you (any language)
+        │
+        ▼
+  🗣️  COMMUNICATOR ──── CHAT? ────▶ answers you directly (no coder round-trip)
+        │
+      CODE? → precise English task spec
+        │
+        ▼
+  👨‍💻  CODER  ──▶ tools ──▶ verify (tests / lint) ──▶ fix ──▶ repeat
+        │
+        ▼  ground truth: the exact tool calls that really ran
+  🗣️  COMMUNICATOR ──▶ explains the result in your language
+```
+
+The communicator can be a small local model (default: `gemma2` on Ollama) while the coder is a
+code-strong model — and it only ever reports what actually happened.
+
+---
+
+## Modes
+
+Switch with the mode button in the chat, or cycle with <kbd>Shift</kbd>+<kbd>Tab</kbd>.
+
+| Mode | Reads | File edits | Commands |
+|---|---|---|---|
+| ✋ **Manual** | auto | ask | ask |
+| ⟨⟩ **Auto-edit** | auto | auto | ask |
+| 📋 **Plan** | auto | **blocked** — explores and proposes a plan only | **blocked** |
+| 🌙 **Auto** | auto | auto | auto |
+
+Even in 🌙 Auto, an overwrite that would wipe most of an existing file still asks — a "summary" write
+that collapses a 500-line file is never approved silently.
+
+---
+
+## Tools
+
+| Tool | Risk | What it does |
+|---|---|---|
+| `read_file` | read | Read a text file (size-capped) |
+| `list_files` | read | List a directory |
+| `search_code` | read | ripgrep (or `grep -E` fallback), case-insensitive, glob-filterable |
+| `analyze_error` | read | Extract `file:line` locations and error codes from build/test output |
+| `create_file` | write | Create a new file — shows a diff |
+| `edit_file` | write | Replace a unique snippet — shows a diff |
+| `write_file` | write | Overwrite a file — shows a diff, gated when destructive |
+| `run_terminal` | execute | Any shell command in the workspace root |
+| `run_tests` | execute | Your test command (default `npm test`) |
+| `run_linter` | execute | Your lint command |
+| `git` | execute | `status`/`diff`/`log` run freely; `add`/`commit`/`checkout` ask |
+
+**Guardrails:** every path is resolved inside the workspace (no `../` escapes), and commands that never
+exit (`npm run dev`, `vite`, `tsc --watch`, `docker compose up`, …) are refused with a pointer to a
+one-shot check instead — so a run can't burn its budget on a watcher. Tool names models commonly guess
+(`bash`, `str_replace`, `ls`, `grep`, …) are aliased to the real ones.
+
+---
+
+## Providers
+
+| Provider | API key | Default model | Notes |
+|---|---|---|---|
+| **Anthropic (Claude)** | required | `claude-sonnet-4-5` | Full tool use |
+| **OpenAI (GPT)** | required | `gpt-4o` | `waycode.openai.baseUrl` also targets LM Studio, Groq, Together, Azure |
+| **Ollama (local)** | — | `gemma2` | Installed models are listed for you; tool calls emitted as JSON text are recovered |
+| **Claude Code (CLI)** | — | `sonnet` | Uses your existing Claude subscription; text-only |
+
+All providers share one HTTP layer with timeouts and readable errors, so a loading local model can't
+hang the panel forever.
+
+---
+
+## Commands
+
+| Command | Purpose |
+|---|---|
+| `WayCode: Open Chat` | Focus the sidebar chat |
+| `WayCode: Open in Editor Tab` | Full-width chat in an editor tab |
+| `WayCode: Settings` | Visual settings panel |
+| `WayCode: New Task` | Start a fresh thread (archives the current one) |
+| `WayCode: Conversation History` | Browse and reopen past conversations |
+| `WayCode: Select Model / Provider` | Pick provider + model |
+| `WayCode: Set API Key` | Store a key in Secret Storage |
+| `WayCode: Configure Agent Roles` | Enable and configure the communicator/coder pipeline |
+| `WayCode: Set Approval Mode` | Choose the approval policy |
+| `WayCode: Select Response Language` | Reply language, or `auto` |
+| `WayCode: Add File to Context` | Pin a file (also in the Explorer context menu) |
+| `WayCode: Ask About Selection` | Select code → right-click → prefills the chat with it |
+| `WayCode: Edit Project Context File` | Create/open `WAYCODE.md` |
+
+---
+
+## Settings
+
+| Setting | Default | Description |
+|---|---|---|
+| `waycode.provider` | `anthropic` | Active provider |
+| `waycode.model` | `claude-sonnet-4-5` | Model id for the active provider |
+| `waycode.language` | `auto` | Reply language (`auto` matches you) |
+| `waycode.maxAgentSteps` | `25` | Max tool-use iterations per task |
+| `waycode.autoApproveReads` | `true` | Auto-approve read-only tools |
+| `waycode.autoApprove.fileEdits` | `false` | Auto-approve writes/edits/creates |
+| `waycode.autoApprove.commands` | `false` | Auto-approve terminal/git/test/lint |
+| `waycode.multiAgent.enabled` | `false` | Enable the communicator + coder pipeline |
+| `waycode.roles.communicator.provider` / `.model` | `ollama` / `gemma2` | The language-facing role |
+| `waycode.roles.coder.provider` / `.model` | inherit | The code-writing role |
+| `waycode.ollama.baseUrl` | `http://localhost:11434` | Local Ollama server |
+| `waycode.openai.baseUrl` | — | OpenAI-compatible endpoint |
+
+---
+
+## Project memory
+
+WayCode carries three kinds of memory into every request:
+
+- **`WAYCODE.md`** — a per-project context file you own (also read from `.waycode.md` or
+  `.waycode/context.md`). Put the stack, conventions, and build/test commands there; it's injected into
+  every system prompt. Run `WayCode: Edit Project Context File` to scaffold it.
+- **Workspace memory** — pinned files, recorded decisions, and preferences, persisted per workspace.
+- **Conversation history** — past threads, saved globally and reopenable from 🕘.
+
+---
+
+## Development
+
+```bash
+npm install
+npm run compile      # tsc -p ./
+npm run watch        # rebuild on change
+npm run typecheck    # tsc --noEmit
+npm test             # node --test out/test/  (compiles first)
+npm run lint
+npx @vscode/vsce package   # → waycode-<version>.vsix
+```
+
+Press <kbd>F5</kbd> in VS Code to launch an Extension Development Host with WayCode loaded.
+CI type-checks, compiles, and tests on Node 18 and 20.
+
+### Layout
 
 ```
 src/
-├── extension.ts            # Activation, commands, wiring
-├── config.ts               # Settings + secret API-key storage
-├── providers/              # AI backends behind one interface
-│   ├── types.ts            #   neutral request/response/tool types
-│   ├── AnthropicProvider.ts
-│   ├── OpenAIProvider.ts
-│   ├── OllamaProvider.ts
-│   └── ProviderFactory.ts  #   createProvider(id, creds) — swap models here
-├── tools/                  # Every agent capability is a Tool
-│   ├── Tool.ts             #   Tool interface + approval/preview types
-│   ├── FileTools.ts        #   read / create / write / edit / list
-│   ├── CommandTools.ts     #   terminal / git / tests / linter
-│   ├── SearchTools.ts      #   code search + error analyzer
-│   ├── diff.ts             #   diff preview generator
-│   └── ToolRegistry.ts     #   the set exposed to the model
-├── context/ProjectContext.ts  # Builds a compact project snapshot
-├── memory/Memory.ts           # Persistent per-workspace memory
-├── agent/
-│   ├── Agent.ts            # plan → act → verify → fix loop (the coder bot)
-│   ├── Orchestrator.ts     # multi-agent pipeline (communicator ↔ coder)
-│   └── prompts.ts          # senior-engineer + communicator prompts
-└── ui/ChatViewProvider.ts  # Webview host (bridges UI ↔ Agent)
-
-media/                      # Webview assets (vanilla JS/CSS, CSP-safe)
+├─ extension.ts          activation + all commands
+├─ config.ts             settings & Secret Storage
+├─ agent/
+│  ├─ Agent.ts           the plan → act → verify → fix loop
+│  ├─ Orchestrator.ts    communicator ⇄ coder pipeline
+│  ├─ prompts.ts         system prompts
+│  ├─ routing.ts         CHAT vs CODE classification
+│  └─ history.ts         context-window trimming
+├─ providers/            Anthropic · OpenAI · Ollama · Claude CLI (one interface)
+├─ tools/                file · search · command tools, diffs, path safety
+├─ context/              project snapshot + WAYCODE.md
+├─ memory/               workspace memory + conversation history
+├─ ui/                   chat webview + settings panel
+└─ test/                 node:test suite
 ```
 
-**Design principle:** everything is behind an interface. The agent depends only on `AIProvider` and `Tool`, so adding a model or a capability never touches the core loop.
+Adding a provider means implementing `AIProvider` and registering it in `ProviderFactory`; adding a
+tool means implementing `Tool` and listing it in `ToolRegistry.default()`. Nothing else changes.
 
 ---
 
-## 🚀 Getting started
+<div dir="rtl">
 
-### Prerequisites
-- VS Code ≥ 1.85
-- Node.js ≥ 18
+## בעברית
 
-### Run in development
-```bash
-npm install
-npm run compile        # or: npm run watch
-npm test               # run the unit test suite (node:test)
-```
-Then press **F5** in VS Code ("Run WayCode Extension") to open an Extension Development Host.
+**WayCode** הוא סוכן קוד מבוסס AI שיושב בסרגל הצד של VS Code. כותבים לו בעברית מה צריך — והוא קורא את
+הפרויקט, מחפש בקוד, כותב ומתקן קבצים, מריץ בדיקות ולינטר, קורא את השגיאות ומתקן אותן. לפני כל שינוי
+מסוכן הוא מציג **diff או את הפקודה המדויקת** ומחכה לאישור שלך.
 
-The test suite (`src/test/`) covers the pure logic that must not regress: the diff
-generator, workspace path-safety, the local-model tool-call recovery parser, and
-the HTTP timeout/error handling. It runs on Node's built-in test runner — no extra
-dependencies — and in CI (GitHub Actions) on Node 18 and 20.
+- עונה בעברית, והצ'אט מיושר לימין אוטומטית (הקוד נשאר משמאל לימין).
+- עובד עם Claude, GPT, מודל מקומי דרך Ollama, או מנוי Claude Code שכבר יש לך — בשתי האפשרויות
+  האחרונות בלי API key ובלי עלות פר-טוקן.
+- במצב שני-סוכנים: בוט אחד חזק בשפה מדבר איתך (יכול לרוץ מקומית), ובוט אחר חזק בקוד עושה את העבודה —
+  וההסבר שאתה מקבל בנוי מהפעולות שבאמת בוצעו, כך שאין "הכול מוכן ✅" מומצא.
+- ארבעה מצבי אישור, כולל מצב **תכנון** לקריאה בלבד שלא נוגע בקבצים.
 
-### Configure a model
-1. `Cmd/Ctrl+Shift+P` → **WayCode: Set API Key** → pick a provider and paste your key
-   (stored securely in VS Code Secret Storage; Ollama needs no key).
-2. **WayCode: Select Model / Provider** → choose provider + model id.
-3. Open the **WayCode** icon in the Activity Bar and start chatting.
-
-### Default models
-| Provider  | Default model            | Key required |
-|-----------|--------------------------|--------------|
-| Anthropic | `claude-sonnet-4-5`      | ✅           |
-| OpenAI    | `gpt-4o`                 | ✅           |
-| Ollama    | `gemma2` (local)         | ❌           |
-| Claude Code (CLI) | `sonnet`         | ❌ (uses your Claude subscription) |
-
-**The communicator (personal assistant) role defaults to local Ollama + `gemma2`** — no
-API key, nothing leaves your machine, and it's excellent at Hebrew. Install
-[Ollama](https://ollama.com) and run `ollama pull gemma2` to use it. Point the **coder**
-role at Ollama too (e.g. a code-strong local model such as `qwen2.5-coder`) for a fully
-local setup with no cloud calls at all.
-
-**Claude Code CLI provider (no API key):** if you have the `claude` CLI installed
-and signed in, you can instead pick provider **`claude-cli`** to use Claude through your
-existing subscription. It's a text backend (no WayCode tool-calling), so it can only fill
-the **communicator** role — but note it makes a network call and can be slow; the local
-`gemma2:9b` communicator above avoids that.
+</div>
 
 ---
 
-## ⚙️ Settings
+<div align="center">
 
-| Setting | Description | Default |
-|---|---|---|
-| `waycode.provider` | Active provider | `anthropic` |
-| `waycode.model` | Model id | `claude-sonnet-4-5` |
-| `waycode.ollama.baseUrl` | Ollama server URL | `http://localhost:11434` |
-| `waycode.openai.baseUrl` | OpenAI-compatible endpoint (LM Studio, Groq, Azure…) | `` (api.openai.com) |
-| `waycode.maxAgentSteps` | Max tool iterations per task | `25` |
-| `waycode.autoApproveReads` | Auto-approve read-only tools | `true` |
-| `waycode.autoApprove.fileEdits` | Auto-approve file create/edit/write | `false` |
-| `waycode.autoApprove.commands` | Auto-approve terminal/git/test/lint | `false` |
+MIT © WayCode · [Changelog](CHANGELOG.md)
 
-### Approval modes
-
-Run **WayCode: Set Approval Mode** to choose how much the agent may do without asking:
-
-| Mode | Reads | File edits | Commands |
-|---|:--:|:--:|:--:|
-| Ask for everything | ask | ask | ask |
-| Auto-approve reads only *(default)* | auto | ask | ask |
-| Auto-approve file edits | auto | auto | ask |
-| Auto-approve commands | auto | ask | auto |
-| Auto-approve everything (YOLO) | auto | auto | auto |
-
-The current mode is shown in the chat's status line (🔓). Every write/command still shows a diff or the command text in the log so you can see exactly what happened.
-
----
-
-## 🤖 Multi-agent pipeline (role-based)
-
-Turn it on with **WayCode: Configure Agent Roles**. You pick a model for each role:
-
-```
-   user (Hebrew / any language)
-        │
-        ▼
-  ┌─────────────────────┐   Communicator bot
-  │ understands intent, │   → strong at language (e.g. gemma2 via Ollama — runs locally)
-  │ writes a task spec  │
-  └─────────────────────┘
-        │  precise English task spec
-        ▼
-  ┌─────────────────────┐   Coder bot
-  │ writes / edits code │   → strong at code (e.g. qwen2.5-coder via Ollama)
-  │ runs & fixes (loop) │      need not speak your language
-  └─────────────────────┘
-        │  code + verification (lint / tests)
-        ▼
-  ┌─────────────────────┐   Communicator bot
-  │ explains the result │   → back in your language
-  └─────────────────────┘
-```
-
-Why: the language-strong model talks to you, while a code-strong (and often cheaper/faster) model does the engineering — no single model has to be great at everything. When multi-agent is **off**, one agent handles the whole task.
-
-**Smart routing:** the communicator bot decides, per message, whether it's a plain
-conversation/question (it answers directly — no coder involved) or an actual coding
-task (it writes a spec and hands it to the coder). The routing decision is shown in
-the chat (🧭).
-
-**Reply language:** run **WayCode: Select Response Language** (or set `waycode.language`)
-to force replies into Hebrew, English, Arabic, and more — or leave it on `auto` to
-match whatever language you write in.
-
-**Transparency:** every tool the agent runs appears as a live card showing the exact
-command/path, a running→done/error status, and its output; each bot's reasoning is
-shown as a 💭 thinking block.
-
-Relevant settings: `waycode.multiAgent.enabled`, `waycode.roles.communicator.{provider,model}`, `waycode.roles.coder.{provider,model}`, `waycode.language`.
-
-## 🧠 How the agent works
-1. **Understand** — reads relevant files; never edits unread code.
-2. **Plan** — states a short step-by-step plan for non-trivial tasks.
-3. **Act** — uses tools to search, create, and edit code and run commands.
-4. **Verify** — runs the build/tests/linter after changes.
-5. **Fix** — analyzes failures and iterates until green (or reports a real blocker).
-
----
-
-## 🗺 Roadmap
-- Streaming responses token-by-token
-- React-based webview with rich markdown/code rendering
-- Multi-file atomic apply with a review panel
-- Semantic project indexing / embeddings retrieval
-- Inline (editor) code actions and quick fixes
-- Test-generation and coverage-aware fixing
-- More providers (Azure OpenAI, Mistral, Groq)
-
----
-
-## 📄 License
-MIT
+</div>
