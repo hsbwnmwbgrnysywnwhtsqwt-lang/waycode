@@ -11,6 +11,11 @@
   const statusEl = document.getElementById("status");
   const modeBtn = document.getElementById("modeBtn");
   const modeMenu = document.getElementById("modeMenu");
+  const addContextBtn = document.getElementById("addContext");
+  const chipsEl = document.getElementById("chips");
+
+  /** Files attached as context for the next message. */
+  let attached = [];
 
   const MODES = [
     { id: "manual", icon: "✋", label: "Manual", desc: "Ask for approval before each edit" },
@@ -275,12 +280,33 @@
     inputEl.disabled = running;
   }
 
+  function renderChips() {
+    chipsEl.innerHTML = "";
+    attached.forEach(function (path, i) {
+      const chip = el("span", "chip");
+      chip.appendChild(el("span", "chip-name", "📎 " + path));
+      const x = el("span", "chip-x", "✕");
+      x.addEventListener("click", function () {
+        attached.splice(i, 1);
+        renderChips();
+      });
+      chip.appendChild(x);
+      chipsEl.appendChild(chip);
+    });
+  }
+
   function send() {
     const text = inputEl.value.trim();
-    if (!text) return;
-    vscode.postMessage({ type: "send", text: text });
+    if (!text && !attached.length) return;
+    vscode.postMessage({ type: "send", text: text, context: attached });
     inputEl.value = "";
+    attached = [];
+    renderChips();
   }
+
+  addContextBtn.addEventListener("click", function () {
+    vscode.postMessage({ type: "pickContext" });
+  });
 
   sendBtn.addEventListener("click", send);
   cancelBtn.addEventListener("click", function () {
@@ -408,6 +434,12 @@
       case "modeState":
         currentMode = msg.mode || "manual";
         updateModeButton();
+        break;
+      case "contextAdded":
+        if (msg.path && attached.indexOf(msg.path) === -1) {
+          attached.push(msg.path);
+          renderChips();
+        }
         break;
       case "userMessage":
         addMessage("user", msg.text);

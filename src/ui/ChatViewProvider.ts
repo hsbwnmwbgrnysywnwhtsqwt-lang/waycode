@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import * as fs from "fs/promises";
 import { Agent, AgentEvents, RunPolicy } from "../agent/Agent";
 import { Orchestrator, RoleModel } from "../agent/Orchestrator";
 import { ToolRegistry } from "../tools/ToolRegistry";
@@ -7,6 +8,7 @@ import { Memory } from "../memory/Memory";
 import { Config, AgentRole } from "../config";
 import { createProvider, PROVIDER_META, ProviderId } from "../providers/ProviderFactory";
 import { ToolPreview } from "../tools/Tool";
+import { safeResolve, toRelative } from "../tools/pathUtils";
 
 /** Anything the chat can drive: a single Agent or the multi-agent Orchestrator. */
 interface Runner {
@@ -68,10 +70,21 @@ export class ChatController {
     this.post({ type: "log", text });
   }
 
+  /** Attach a file (by workspace-relative path) as a context chip. */
+  attachContext(relPath: string): void {
+    this.post({ type: "contextAdded", path: relPath });
+  }
+
   private async onMessage(msg: any): Promise<void> {
     switch (msg?.type) {
       case "send":
-        await this.handleSend(String(msg.text ?? ""));
+        await this.handleSend(
+          String(msg.text ?? ""),
+          Array.isArray(msg.context) ? msg.context.map(String) : []
+        );
+        break;
+      case "pickContext":
+        await this.pickContext();
         break;
       case "approval":
         this.resolveApproval(String(msg.id), Boolean(msg.approved));
@@ -210,8 +223,8 @@ export class ChatController {
     );
   }
 
-  private async handleSend(text: string): Promise<void> {
-    if (!text.trim()) return;
+  private async handleSend(text: string, context: string[] = []): Promise<void> {
+    if (!text.trim() && !context.length) return;
 
     const folder = vscode.workspace.workspaceFolders?.[0];
     if (!folder) {
@@ -219,6 +232,9 @@ export class ChatController {
       return;
     }
     const root = folder.uri.fsPath;
+    // Inject any attached files' contents into the message the model sees.
+    const contextBlock = await this.readContext(root, context);
+    const modelText = contextBlock ? `${contextBlock}\n\n---\n\n${text}` : text;
 
     // Pick up approval changes made via the Command Palette (plan mode is UI-only).
     this.policy.autoApproveReads = this.config.autoApproveReads;
@@ -234,6 +250,7 @@ export class ChatController {
     }
 
     this.post({ type: "userMessage", text });
+    if (context.length) this.post({ type: "log", text: `📎 Attached: ${context.join(", ")}` });
     this.post({ type: "running", value: true });
 
     const events: AgentEvents = {
@@ -257,7 +274,44 @@ export class ChatController {
       onPhase: (name, label) => this.post({ type: "phase", name, label }),
     };
 
-    await this.runner.run(text, events);
+    await this.runner.run(modelText, events);
+  }
+
+  /** Read attached files and format them as a context block for the model. */
+  private async readContext(root: string, context: string[]): Promise<string> {
+    if (!context.length) return "";
+    const blocks: string[] = [];
+    for (const rel of context) {
+      try {
+        const abs = safeResolve(root, rel);
+        let content = await fs.readFile(abs, "utf8");
+        if (content.length > 20_000) content = content.slice(0, 20_000) + "\n… [truncated]";
+        blocks.push(`### ${rel}\n\`\`\`\n${content}\n\`\`\``);
+      } catch {
+        /* skip unreadable files */
+      }
+    }
+    return blocks.length ? `The user attached these files as context:\n\n${blocks.join("\n\n")}` : "";
+  }
+
+  /** Let the user pick workspace files to attach as context for the next message. */
+  async pickContext(): Promise<void> {
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    if (!folder) {
+      this.post({ type: "error", text: "Open a folder/workspace first." });
+      return;
+    }
+    const files = await vscode.workspace.findFiles("**/*", "**/{node_modules,out,dist,.git,.next}/**", 3000);
+    const items = files
+      .map((f) => ({ label: toRelative(folder.uri.fsPath, f.fsPath) }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    const picks = await vscode.window.showQuickPick(items, {
+      title: "WayCode: Attach files as context",
+      canPickMany: true,
+      placeHolder: "Pick one or more files to include with your next message",
+    });
+    if (!picks || !picks.length) return;
+    for (const p of picks) this.post({ type: "contextAdded", path: p.label });
   }
 
   private askApproval(preview: ToolPreview): Promise<boolean> {
@@ -309,8 +363,10 @@ export class ChatController {
   </header>
   <div id="messages" class="messages"></div>
   <div class="composer">
+    <div id="chips" class="chips"></div>
     <textarea id="input" rows="3" placeholder="Ask WayCode…  (Enter to send, Shift+Enter = newline)"></textarea>
     <div class="composer-actions">
+      <button id="addContext" class="toggle" title="Attach files as context">➕</button>
       <div class="mode-wrap">
         <button id="modeBtn" class="toggle" title="Switch mode (Shift+Tab)">⚡ Mode ▾</button>
         <div id="modeMenu" class="mode-menu hidden"></div>

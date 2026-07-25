@@ -17,6 +17,9 @@
   - **⟨⟩ Auto-edit** — edit files automatically; ask before commands
   - **📋 Plan** — explore read-only and present a step-by-step plan, no changes
   - **🌙 Auto** — auto-approve everything (no questions)
+- **Attach files as context** — a ➕ button in the composer (or right-click a file →
+  *Add File to Context*) attaches files as chips; their contents ride along with your
+  next message so the agent focuses on exactly what you mean.
 - **Command Palette** integration (`WayCode: …`).
 - **Agent engine** that plans → acts → verifies → fixes in a loop.
 - **Multi-agent pipeline (role-based)** — an optional mode where a **communicator bot** (strong at your language, e.g. Hebrew) understands you and explains results, while a separate **coder bot** (strong at code, e.g. Qwen Coder) does the engineering. Each role runs on its own provider/model.

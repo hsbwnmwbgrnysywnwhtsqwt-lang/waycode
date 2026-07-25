@@ -39,9 +39,8 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
       const rel = toRelative(folder.uri.fsPath, target.fsPath);
-      await memory.pinFile(rel);
       await vscode.commands.executeCommand("waycode.chatView.focus");
-      controller.notify(`📌 Added ${rel} to context.`);
+      controller.attachContext(rel);
     }),
 
     vscode.commands.registerCommand("waycode.selectModel", () => selectModel(config, controller)),

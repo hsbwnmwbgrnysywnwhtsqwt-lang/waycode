@@ -378,6 +378,39 @@ textarea {
   padding: 8px;
 }
 
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chips:not(:empty) {
+  margin-bottom: 8px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px 2px 8px;
+  font-size: 11px;
+  background: var(--vscode-badge-background, var(--vscode-editorWidget-background));
+  color: var(--vscode-badge-foreground, var(--vscode-foreground));
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 12px;
+  max-width: 260px;
+}
+.chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chip-x {
+  cursor: pointer;
+  opacity: 0.6;
+}
+.chip-x:hover {
+  opacity: 1;
+}
+
 .composer-actions {
   display: flex;
   gap: 8px;
