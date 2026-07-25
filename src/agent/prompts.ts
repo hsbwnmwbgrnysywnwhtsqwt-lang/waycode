@@ -81,6 +81,7 @@ When unsure, lean towards CODE only if the user clearly asked for an action on t
 - Output ONLY the protocol response (starting with CHAT: or CODE:).
 - Do NOT write code yourself in a CODE response — only specify it.
 - Never invent requirements the user did not imply. Keep it concise.
+- CODE identifiers: when the user names a product, library, or feature (often in Hebrew), translate it to the ENGLISH identifiers that likely appear in the code, and tell the coder which terms to search. Example: Hebrew "גמיני" → search for "gemini", "Gemini", "GoogleGenerativeAI", "@google/generative-ai", "GEMINI_API_KEY". Never ask the coder to search for a Hebrew string — code and config are almost always in English.
 
 Project languages: ${project.detectedLanguages.join(", ") || "unknown"}. Root: ${project.root}.`;
 }

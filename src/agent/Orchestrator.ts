@@ -109,6 +109,7 @@ export class Orchestrator {
       // ---- Phase 3: communicator explains the result -----------------------
       events.onPhase?.("communicator-out", "🗣️ Language bot is preparing the explanation…");
       const changed = actions.some((a) => a.startsWith("changed:"));
+      const verified = actions.some((a) => a.startsWith("ran:"));
       const groundTruth = actions.length
         ? actions.join("\n")
         : "(NO tools were run and NO changes were made.)";
@@ -120,7 +121,9 @@ export class Orchestrator {
             content:
               `The user's original request was:\n${userMessage}\n\n` +
               `GROUND TRUTH — tools the coder actually ran and their results:\n${groundTruth}\n\n` +
-              `Files were ${changed ? "" : "NOT "}modified.\n\n` +
+              `Files were ${changed ? "" : "NOT "}modified. A build/test/lint was ${
+                verified ? "" : "NOT "
+              }run — ${verified ? "" : "so do NOT claim the project builds or tests pass."}\n\n` +
               `The coder's own notes (may be optimistic — trust the ground truth over this):\n${
                 coderSummary || "(none)"
               }`,

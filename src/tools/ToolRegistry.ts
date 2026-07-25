@@ -36,8 +36,39 @@ export class ToolRegistry {
     ]);
   }
 
+  /** Common names models guess for our tools, mapped to the real tool name. */
+  private static readonly ALIASES: Record<string, string> = {
+    run_command: "run_terminal",
+    run_shell: "run_terminal",
+    shell: "run_terminal",
+    bash: "run_terminal",
+    execute_command: "run_terminal",
+    terminal: "run_terminal",
+    str_replace: "edit_file",
+    str_replace_editor: "edit_file",
+    replace_in_file: "edit_file",
+    apply_edit: "edit_file",
+    edit: "edit_file",
+    write: "write_file",
+    create: "create_file",
+    new_file: "create_file",
+    read: "read_file",
+    cat: "read_file",
+    ls: "list_files",
+    list_dir: "list_files",
+    grep: "search_code",
+    search: "search_code",
+    find: "search_code",
+    run_test: "run_tests",
+    test: "run_tests",
+    lint: "run_linter",
+  };
+
   get(name: string): Tool | undefined {
-    return this.tools.get(name);
+    const direct = this.tools.get(name);
+    if (direct) return direct;
+    const alias = ToolRegistry.ALIASES[name];
+    return alias ? this.tools.get(alias) : undefined;
   }
 
   list(): Tool[] {
