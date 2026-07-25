@@ -1,0 +1,127 @@
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+  background: var(--vscode-editor-background);
+}
+.wrap {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 20px 80px;
+}
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.brand {
+  font-weight: 700;
+  font-size: 18px;
+}
+.sub {
+  opacity: 0.6;
+}
+.card {
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+.card h2 {
+  margin: 0 0 2px;
+  font-size: 14px;
+}
+.card h3 {
+  margin: 14px 0 6px;
+  font-size: 12px;
+  opacity: 0.85;
+}
+.desc {
+  margin: 0 0 12px;
+  font-size: 12px;
+  opacity: 0.65;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+}
+.row-label {
+  flex: 0 0 160px;
+  font-size: 12px;
+  opacity: 0.9;
+}
+.row select,
+.row input[type="text"] {
+  flex: 1;
+  padding: 6px 8px;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 12px;
+}
+.row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+}
+.role {
+  border-left: 2px solid var(--vscode-panel-border);
+  padding-left: 12px;
+  margin-top: 8px;
+}
+.key-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+.key-status {
+  font-size: 12px;
+}
+.key-status.set {
+  color: var(--vscode-gitDecoration-addedResourceForeground, #4caf50);
+}
+.key-status.unset {
+  opacity: 0.6;
+}
+button {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 6px 14px;
+  border: 1px solid var(--vscode-button-border, transparent);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--vscode-button-secondaryForeground);
+  background: var(--vscode-button-secondaryBackground);
+}
+button.small {
+  padding: 4px 10px;
+  margin-left: auto;
+}
+button.ghost {
+  background: transparent;
+  border-color: var(--vscode-panel-border);
+  margin-left: 0;
+}
+button.primary {
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  padding: 8px 18px;
+}
+.savebar {
+  position: sticky;
+  bottom: 0;
+  padding: 14px 0;
+  background: linear-gradient(to top, var(--vscode-editor-background) 70%, transparent);
+  display: flex;
+  justify-content: flex-end;
+}

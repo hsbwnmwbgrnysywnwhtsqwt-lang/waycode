@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { ChatViewProvider, ChatController, openChatPanel } from "./ui/ChatViewProvider";
+import { openSettingsPanel } from "./ui/SettingsPanel";
 import { Memory } from "./memory/Memory";
 import { Config } from "./config";
 import { ProviderId, PROVIDER_META } from "./providers/ProviderFactory";
@@ -24,6 +25,8 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
 
     vscode.commands.registerCommand("waycode.openPanel", () => openChatPanel(context.extensionUri, controller)),
+
+    vscode.commands.registerCommand("waycode.openSettings", () => openSettingsPanel(context.extensionUri, config)),
 
     vscode.commands.registerCommand("waycode.newTask", async () => {
       await vscode.commands.executeCommand("waycode.chatView.focus");

@@ -307,6 +307,12 @@
   addContextBtn.addEventListener("click", function () {
     vscode.postMessage({ type: "pickContext" });
   });
+  const settingsBtn = document.getElementById("settingsBtn");
+  if (settingsBtn) {
+    settingsBtn.addEventListener("click", function () {
+      vscode.postMessage({ type: "openSettings" });
+    });
+  }
 
   sendBtn.addEventListener("click", send);
   cancelBtn.addEventListener("click", function () {

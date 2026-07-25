@@ -86,6 +86,9 @@ export class ChatController {
       case "pickContext":
         await this.pickContext();
         break;
+      case "openSettings":
+        await vscode.commands.executeCommand("waycode.openSettings");
+        break;
       case "approval":
         this.resolveApproval(String(msg.id), Boolean(msg.approved));
         break;
@@ -367,6 +370,7 @@ export class ChatController {
     <textarea id="input" rows="3" placeholder="Ask WayCode…  (Enter to send, Shift+Enter = newline)"></textarea>
     <div class="composer-actions">
       <button id="addContext" class="toggle" title="Attach files as context">➕</button>
+      <button id="settingsBtn" class="toggle" title="WayCode settings">⚙</button>
       <div class="mode-wrap">
         <button id="modeBtn" class="toggle" title="Switch mode (Shift+Tab)">⚡ Mode ▾</button>
         <div id="modeMenu" class="mode-menu hidden"></div>

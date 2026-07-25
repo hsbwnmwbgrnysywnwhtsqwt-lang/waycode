@@ -20,6 +20,12 @@
 - **Attach files as context** — a ➕ button in the composer (or right-click a file →
   *Add File to Context*) attaches files as chips; their contents ride along with your
   next message so the agent focuses on exactly what you mean.
+- **Visual settings page** — **WayCode: Settings** (⚙ in the chat, sidebar header, or
+  Command Palette) opens a full page to set provider, models, multi-agent roles,
+  **reply language**, approvals, endpoints, and API keys — no digging through VS Code
+  settings.
+- **Top-bar button** — a WayCode icon in the editor title bar (like Claude/Codex) opens
+  the chat in an editor tab.
 - **Command Palette** integration (`WayCode: …`).
 - **Agent engine** that plans → acts → verifies → fixes in a loop.
 - **Multi-agent pipeline (role-based)** — an optional mode where a **communicator bot** (strong at your language, e.g. Hebrew) understands you and explains results, while a separate **coder bot** (strong at code, e.g. Qwen Coder) does the engineering. Each role runs on its own provider/model.

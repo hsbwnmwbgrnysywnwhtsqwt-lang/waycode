@@ -109,6 +109,18 @@ export class Config {
     return vscode.workspace.getConfiguration("waycode").get<string>("openai.baseUrl", "").trim();
   }
 
+  async setOllamaBaseUrl(url: string): Promise<void> {
+    await vscode.workspace
+      .getConfiguration("waycode")
+      .update("ollama.baseUrl", url, vscode.ConfigurationTarget.Global);
+  }
+
+  async setOpenaiBaseUrl(url: string): Promise<void> {
+    await vscode.workspace
+      .getConfiguration("waycode")
+      .update("openai.baseUrl", url, vscode.ConfigurationTarget.Global);
+  }
+
   async setProvider(id: ProviderId): Promise<void> {
     await vscode.workspace
       .getConfiguration("waycode")

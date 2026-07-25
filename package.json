@@ -55,7 +55,13 @@
         "command": "waycode.openPanel",
         "title": "WayCode: Open in Editor Tab",
         "category": "WayCode",
-        "icon": "$(window)"
+        "icon": "media/icon.svg"
+      },
+      {
+        "command": "waycode.openSettings",
+        "title": "WayCode: Settings",
+        "category": "WayCode",
+        "icon": "$(gear)"
       },
       {
         "command": "waycode.newTask",
@@ -114,8 +120,19 @@
       ],
       "view/title": [
         {
+          "command": "waycode.openSettings",
+          "when": "view == waycode.chatView",
+          "group": "navigation@1"
+        },
+        {
           "command": "waycode.openPanel",
           "when": "view == waycode.chatView",
+          "group": "navigation@2"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "waycode.openPanel",
           "group": "navigation"
         }
       ]
