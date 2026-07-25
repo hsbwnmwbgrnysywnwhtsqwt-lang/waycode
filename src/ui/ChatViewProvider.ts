@@ -187,6 +187,13 @@ export class ChatController {
   private async buildRunner(root: string): Promise<Runner | undefined> {
     const cfg = this.agentConfig();
     if (this.config.multiAgentEnabled) {
+      if (this.config.roleProvider("coder") === "claude-cli") {
+        this.post({
+          type: "error",
+          text: "Claude CLI can't be the coder — it's text-only and has no WayCode tools, so it times out. In Settings, set the coder to Ollama (e.g. qwen2.5-coder) or the Anthropic API. Claude CLI is great as the communicator.",
+        });
+        return undefined;
+      }
       const comm = await this.buildRole("communicator");
       const coder = await this.buildRole("coder");
       if ("error" in comm) {

@@ -117,7 +117,9 @@
     // Team block
     const ma = section(
       "Team roles",
-      "The language bot understands you (great for Hebrew); the coder bot writes the code."
+      "Communicator: talks to you (great for Hebrew) — Claude CLI shines here. " +
+        "Coder: must support tools to edit files — use Ollama (e.g. qwen2.5-coder) or the Anthropic API. " +
+        "Claude CLI cannot be the coder (it is text-only and will time out)."
     );
 
     function roleBlock(roleKey, title) {
