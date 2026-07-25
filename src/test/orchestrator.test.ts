@@ -66,10 +66,13 @@ test("communicator is told NOTHING changed when the coder runs no tools", async 
       {
         model: "d",
         maxSteps: 4,
-        autoApproveReads: true,
-        autoApproveWrites: true,
-        autoApproveCommands: true,
         language: "auto",
+        policy: {
+          autoApproveReads: true,
+          autoApproveWrites: true,
+          autoApproveCommands: true,
+          planMode: false,
+        },
       },
       dir
     );
@@ -106,10 +109,13 @@ test("a CHAT route answers directly without invoking the coder", async () => {
       {
         model: "d",
         maxSteps: 4,
-        autoApproveReads: true,
-        autoApproveWrites: true,
-        autoApproveCommands: true,
         language: "auto",
+        policy: {
+          autoApproveReads: true,
+          autoApproveWrites: true,
+          autoApproveCommands: true,
+          planMode: false,
+        },
       },
       dir
     );

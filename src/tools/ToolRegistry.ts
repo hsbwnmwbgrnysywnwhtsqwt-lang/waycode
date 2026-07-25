@@ -47,4 +47,11 @@ export class ToolRegistry {
   schemas(): ToolSchema[] {
     return this.list().map(toSchema);
   }
+
+  /** Only read-only tools — used in plan mode so the agent cannot make changes. */
+  readOnlySchemas(): ToolSchema[] {
+    return this.list()
+      .filter((t) => t.risk === "read")
+      .map(toSchema);
+  }
 }

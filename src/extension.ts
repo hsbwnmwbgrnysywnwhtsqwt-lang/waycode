@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { ChatViewProvider } from "./ui/ChatViewProvider";
+import { ChatViewProvider, ChatController, openChatPanel } from "./ui/ChatViewProvider";
 import { Memory } from "./memory/Memory";
 import { Config } from "./config";
 import { ProviderId, PROVIDER_META } from "./providers/ProviderFactory";
@@ -8,7 +8,8 @@ import { toRelative } from "./tools/pathUtils";
 export function activate(context: vscode.ExtensionContext): void {
   const memory = new Memory(context.workspaceState);
   const config = new Config(context.secrets);
-  const chat = new ChatViewProvider(context.extensionUri, memory, config);
+  const controller = new ChatController(context.extensionUri, memory, config);
+  const chat = new ChatViewProvider(controller);
 
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, chat, {
@@ -19,13 +20,15 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("waycode.openChat", async () => {
       await vscode.commands.executeCommand("waycode.chatView.focus");
-      chat.focusInput();
+      controller.focusInput();
     }),
+
+    vscode.commands.registerCommand("waycode.openPanel", () => openChatPanel(context.extensionUri, controller)),
 
     vscode.commands.registerCommand("waycode.newTask", async () => {
       await vscode.commands.executeCommand("waycode.chatView.focus");
       chat.reveal();
-      chat.notify("Started a new task.");
+      controller.notify("Started a new task.");
     }),
 
     vscode.commands.registerCommand("waycode.addFileToContext", async (uri?: vscode.Uri) => {
@@ -38,18 +41,18 @@ export function activate(context: vscode.ExtensionContext): void {
       const rel = toRelative(folder.uri.fsPath, target.fsPath);
       await memory.pinFile(rel);
       await vscode.commands.executeCommand("waycode.chatView.focus");
-      chat.notify(`📌 Added ${rel} to context.`);
+      controller.notify(`📌 Added ${rel} to context.`);
     }),
 
-    vscode.commands.registerCommand("waycode.selectModel", () => selectModel(config, chat)),
+    vscode.commands.registerCommand("waycode.selectModel", () => selectModel(config, controller)),
 
     vscode.commands.registerCommand("waycode.setApiKey", () => setApiKey(config)),
 
-    vscode.commands.registerCommand("waycode.configureRoles", () => configureRoles(config, chat)),
+    vscode.commands.registerCommand("waycode.configureRoles", () => configureRoles(config, controller)),
 
-    vscode.commands.registerCommand("waycode.setApprovalMode", () => setApprovalMode(config, chat)),
+    vscode.commands.registerCommand("waycode.setApprovalMode", () => setApprovalMode(config, controller)),
 
-    vscode.commands.registerCommand("waycode.selectLanguage", () => selectLanguage(config, chat)),
+    vscode.commands.registerCommand("waycode.selectLanguage", () => selectLanguage(config, controller)),
 
     vscode.commands.registerCommand("waycode.askSelection", async () => {
       const editor = vscode.window.activeTextEditor;
@@ -66,12 +69,12 @@ export function activate(context: vscode.ExtensionContext): void {
       const lang = editor.document.languageId;
       const block = `About \`${rel}:${startLine}\`:\n\n\`\`\`${lang}\n${selection}\n\`\`\`\n\n`;
       await vscode.commands.executeCommand("waycode.chatView.focus");
-      chat.prefill(block);
+      controller.prefill(block);
     })
   );
 }
 
-async function selectLanguage(config: Config, chat: ChatViewProvider): Promise<void> {
+async function selectLanguage(config: Config, chat: ChatController): Promise<void> {
   const languages = [
     "auto",
     "Hebrew",
@@ -98,7 +101,7 @@ async function selectLanguage(config: Config, chat: ChatViewProvider): Promise<v
   vscode.window.showInformationMessage(`WayCode will reply in: ${pick.label}.`);
 }
 
-async function setApprovalMode(config: Config, chat: ChatViewProvider): Promise<void> {
+async function setApprovalMode(config: Config, chat: ChatController): Promise<void> {
   const presets = [
     {
       label: "$(shield) Ask for everything",
@@ -136,7 +139,7 @@ async function setApprovalMode(config: Config, chat: ChatViewProvider): Promise<
   vscode.window.showInformationMessage(`WayCode approval mode: ${config.approvalModeLabel}.`);
 }
 
-async function configureRoles(config: Config, chat: ChatViewProvider): Promise<void> {
+async function configureRoles(config: Config, chat: ChatController): Promise<void> {
   const enablePick = await vscode.window.showQuickPick(
     [
       { label: "Enable multi-agent (communicator + coder)", value: true },
@@ -183,7 +186,7 @@ async function configureRoles(config: Config, chat: ChatViewProvider): Promise<v
   vscode.window.showInformationMessage("WayCode: multi-agent pipeline configured.");
 }
 
-async function selectModel(config: Config, chat: ChatViewProvider): Promise<void> {
+async function selectModel(config: Config, chat: ChatController): Promise<void> {
   const providerPick = await vscode.window.showQuickPick(
     (Object.keys(PROVIDER_META) as ProviderId[]).map((id) => ({
       label: PROVIDER_META[id].label,

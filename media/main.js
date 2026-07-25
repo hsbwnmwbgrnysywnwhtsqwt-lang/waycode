@@ -9,6 +9,11 @@
   const cancelBtn = document.getElementById("cancel");
   const newTaskBtn = document.getElementById("newTask");
   const statusEl = document.getElementById("status");
+  const planBtn = document.getElementById("planBtn");
+  const moonBtn = document.getElementById("moonBtn");
+
+  let planOn = false;
+  let moonOn = false;
 
   /** In-flight tool cards, keyed by tool-call id, so we can update them in place. */
   const toolCards = {};
@@ -279,6 +284,12 @@
   newTaskBtn.addEventListener("click", function () {
     vscode.postMessage({ type: "newTask" });
   });
+  planBtn.addEventListener("click", function () {
+    vscode.postMessage({ type: "setPlan", value: !planOn });
+  });
+  moonBtn.addEventListener("click", function () {
+    vscode.postMessage({ type: "setMoon", value: !moonOn });
+  });
 
   inputEl.addEventListener("keydown", function (e) {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -345,6 +356,15 @@
     switch (msg.type) {
       case "status":
         statusEl.textContent = msg.text;
+        break;
+      case "planState":
+        planOn = Boolean(msg.value);
+        planBtn.classList.toggle("active", planOn);
+        break;
+      case "moonState":
+        moonOn = Boolean(msg.value);
+        moonBtn.classList.toggle("active", moonOn);
+        moonBtn.textContent = moonOn ? "🌕" : "🌙";
         break;
       case "userMessage":
         addMessage("user", msg.text);

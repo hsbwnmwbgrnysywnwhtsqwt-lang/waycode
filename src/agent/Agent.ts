@@ -26,17 +26,29 @@ export interface AgentEvents {
   onPhase?(name: string, label: string): void;
 }
 
-export interface AgentConfig {
-  model: string;
-  maxSteps: number;
+/**
+ * Live, mutable run policy. The UI can flip these between turns (moon toggle,
+ * plan mode) WITHOUT rebuilding the agent, because the agent reads them fresh on
+ * every step from this shared object.
+ */
+export interface RunPolicy {
   /** Auto-approve read-only tools (read/list/search). */
   autoApproveReads: boolean;
   /** Auto-approve file writes/edits/creates. */
   autoApproveWrites: boolean;
   /** Auto-approve terminal/git/test/lint commands. */
   autoApproveCommands: boolean;
+  /** Plan mode: investigate read-only and propose a plan; make no changes. */
+  planMode: boolean;
+}
+
+export interface AgentConfig {
+  model: string;
+  maxSteps: number;
   /** Reply language: "auto" (match the user) or a language name like "Hebrew". */
   language: string;
+  /** Shared, mutable policy read live on each step. */
+  policy: RunPolicy;
 }
 
 /**
@@ -71,7 +83,6 @@ export class Agent {
     let inputTokens = 0;
     let outputTokens = 0;
     const summary = await this.project.summarize();
-    const system = buildSystemPrompt(summary, this.memory.render(), this.config.language);
 
     this.history.push({ role: "user", content: userMessage });
 
@@ -88,10 +99,15 @@ export class Agent {
           break;
         }
 
+        // Read plan mode live so a mid-conversation toggle takes effect at once.
+        const planMode = this.config.policy.planMode;
+        const system = buildSystemPrompt(summary, this.memory.render(), this.config.language, planMode);
+        const toolSchemas = planMode ? this.tools.readOnlySchemas() : this.tools.schemas();
+
         const response = await this.provider.complete({
           system,
           messages: trimHistory(this.history),
-          tools: this.tools.schemas(),
+          tools: toolSchemas,
           model: this.config.model,
           maxTokens: 4096,
           temperature: 0,
@@ -148,11 +164,19 @@ export class Agent {
     if (!tool) {
       return { output: `Unknown tool '${call.name}'.`, isError: true };
     }
+    // In plan mode, refuse any change — investigate and propose a plan instead.
+    if (this.config.policy.planMode && tool.risk !== "read") {
+      return {
+        output: `Plan mode is on — '${tool.name}' is disabled. Do not make changes; describe this step in your plan for the user to approve.`,
+        isError: true,
+      };
+    }
     // Skip the approval prompt when this risk category is auto-approved.
+    const p = this.config.policy;
     const autoApproved =
-      (tool.risk === "read" && this.config.autoApproveReads) ||
-      (tool.risk === "write" && this.config.autoApproveWrites) ||
-      (tool.risk === "execute" && this.config.autoApproveCommands);
+      (tool.risk === "read" && p.autoApproveReads) ||
+      (tool.risk === "write" && p.autoApproveWrites) ||
+      (tool.risk === "execute" && p.autoApproveCommands);
     const wrappedCtx: ToolContext = autoApproved
       ? { ...ctx, requestApproval: async () => true }
       : ctx;

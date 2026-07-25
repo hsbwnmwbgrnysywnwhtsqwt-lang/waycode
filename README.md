@@ -8,7 +8,13 @@
 
 ## ✨ Features
 
-- **Chat sidebar** inside VS Code with a modern, theme-aware UI.
+- **Chat sidebar _and_ full editor tab** — work in the WayCode sidebar, or click the
+  pop-out button (or run **WayCode: Open in Editor Tab**) for a full-window chat.
+  Both share one conversation.
+- **Plan mode** — a 📋 toggle that restricts the agent to read-only investigation and
+  makes it propose a step-by-step plan without changing anything.
+- **No-questions mode** — a 🌙 moon toggle that auto-approves every action for a fast,
+  uninterrupted flow (and back off with one click).
 - **Command Palette** integration (`WayCode: …`).
 - **Agent engine** that plans → acts → verifies → fixes in a loop.
 - **Multi-agent pipeline (role-based)** — an optional mode where a **communicator bot** (strong at your language, e.g. Hebrew) understands you and explains results, while a separate **coder bot** (strong at code, e.g. Qwen Coder) does the engineering. Each role runs on its own provider/model.

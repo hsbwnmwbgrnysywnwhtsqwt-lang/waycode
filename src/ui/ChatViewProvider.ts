@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { Agent, AgentEvents } from "../agent/Agent";
+import { Agent, AgentEvents, RunPolicy } from "../agent/Agent";
 import { Orchestrator, RoleModel } from "../agent/Orchestrator";
 import { ToolRegistry } from "../tools/ToolRegistry";
 import { ProjectContext } from "../context/ProjectContext";
@@ -15,16 +15,25 @@ interface Runner {
   run(userMessage: string, events: AgentEvents): Promise<unknown>;
 }
 
-/** Hosts the chat webview and wires it to the Agent engine. */
-export class ChatViewProvider implements vscode.WebviewViewProvider {
-  public static readonly viewType = "waycode.chatView";
-
-  private view?: vscode.WebviewView;
+/**
+ * The chat's core logic, independent of where it's shown. It can drive several
+ * webviews at once (the sidebar view AND a full editor panel), which share one
+ * conversation, runner, and live run-policy.
+ */
+export class ChatController {
+  private readonly webviews = new Set<vscode.Webview>();
   private runner?: Runner;
-  /** Signature of the config the current runner was built with. */
   private runnerSig?: string;
   private readonly pendingApprovals = new Map<string, (approved: boolean) => void>();
   private approvalSeq = 0;
+
+  /** Live policy — toggled from the UI (moon/plan) and read by the agent live. */
+  private readonly policy: RunPolicy = {
+    autoApproveReads: true,
+    autoApproveWrites: false,
+    autoApproveCommands: false,
+    planMode: false,
+  };
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -32,48 +41,26 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     private readonly config: Config
   ) {}
 
-  resolveWebviewView(view: vscode.WebviewView): void {
-    this.view = view;
-    view.webview.options = {
+  /** Attach a webview (sidebar or panel). Returns a disposable-style unbinder. */
+  bind(webview: vscode.Webview): void {
+    webview.options = {
       enableScripts: true,
       localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "media")],
     };
-    view.webview.html = this.html(view.webview);
-
-    view.webview.onDidReceiveMessage(async (msg) => {
-      switch (msg?.type) {
-        case "send":
-          await this.handleSend(String(msg.text ?? ""));
-          break;
-        case "approval":
-          this.resolveApproval(String(msg.id), Boolean(msg.approved));
-          break;
-        case "cancel":
-          this.runner?.cancel();
-          break;
-        case "newTask":
-          this.runner?.reset();
-          this.post({ type: "cleared" });
-          break;
-        case "ready":
-          this.post({ type: "status", text: this.statusLine() });
-          break;
-      }
-    });
+    webview.html = this.html(webview);
+    this.webviews.add(webview);
+    webview.onDidReceiveMessage((msg) => this.onMessage(msg));
   }
 
-  /** Public entry used by commands. */
-  reveal(): void {
-    this.view?.show?.(true);
+  unbind(webview: vscode.Webview): void {
+    this.webviews.delete(webview);
   }
 
   focusInput(): void {
     this.post({ type: "focusInput" });
   }
 
-  /** Pre-fill the composer with text (e.g. a code selection) for the user to extend. */
   prefill(text: string): void {
-    this.view?.show?.(true);
     this.post({ type: "prefill", text });
   }
 
@@ -81,19 +68,62 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.post({ type: "log", text });
   }
 
+  private async onMessage(msg: any): Promise<void> {
+    switch (msg?.type) {
+      case "send":
+        await this.handleSend(String(msg.text ?? ""));
+        break;
+      case "approval":
+        this.resolveApproval(String(msg.id), Boolean(msg.approved));
+        break;
+      case "cancel":
+        this.runner?.cancel();
+        break;
+      case "newTask":
+        this.runner?.reset();
+        this.post({ type: "cleared" });
+        break;
+      case "setPlan":
+        this.policy.planMode = Boolean(msg.value);
+        this.broadcastState();
+        break;
+      case "setMoon":
+        await this.setNoQuestions(Boolean(msg.value));
+        break;
+      case "ready":
+        this.broadcastState();
+        break;
+    }
+  }
+
+  /** The moon toggle: on = auto-approve everything ("no questions"). */
+  private async setNoQuestions(on: boolean): Promise<void> {
+    this.policy.autoApproveReads = true;
+    this.policy.autoApproveWrites = on;
+    this.policy.autoApproveCommands = on;
+    await this.config.setApprovalMode({ reads: true, fileEdits: on, commands: on });
+    this.broadcastState();
+  }
+
+  private broadcastState(): void {
+    this.post({ type: "status", text: this.statusLine() });
+    this.post({ type: "planState", value: this.policy.planMode });
+    this.post({ type: "moonState", value: this.policy.autoApproveWrites && this.policy.autoApproveCommands });
+  }
+
   private statusLine(): string {
-    const approval = `  ·  🔓 ${this.config.approvalModeLabel}`;
+    const mode = this.policy.planMode ? "  ·  📋 plan" : "";
+    const moon = this.policy.autoApproveWrites && this.policy.autoApproveCommands ? "  ·  🌙 no-ask" : "";
     const lang = this.config.language !== "auto" ? `  ·  🌐 ${this.config.language}` : "";
     if (this.config.multiAgentEnabled) {
       const comm = this.config.roleModel("communicator");
       const coder = this.config.roleModel("coder");
-      return `🗣️ ${comm}  →  👨‍💻 ${coder}${approval}${lang}`;
+      return `🗣️ ${comm}  →  👨‍💻 ${coder}${mode}${moon}${lang}`;
     }
     const p = this.config.provider;
-    return `${PROVIDER_META[p].label} · ${this.config.model}${approval}${lang}`;
+    return `${PROVIDER_META[p].label} · ${this.config.model}${mode}${moon}${lang}`;
   }
 
-  /** Build a role's provider instance, validating that its API key exists. */
   private async buildRole(role: AgentRole): Promise<RoleModel | { error: string }> {
     const providerId: ProviderId = this.config.roleProvider(role);
     const creds = await this.config.credentialsFor(providerId);
@@ -105,11 +135,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     return { provider: createProvider(providerId, creds), model: this.config.roleModel(role) };
   }
 
-  /** Identity of the current model/mode/config; a change forces a fresh runner. */
+  /** Identity of the model/mode/language; a change forces a fresh runner. Approval
+   * and plan mode are intentionally excluded — they live in the shared policy. */
   private runnerSignature(root: string): string {
     const c = this.config;
-    const approval = `${c.autoApproveReads}/${c.autoApproveFileEdits}/${c.autoApproveCommands}`;
-    const common = `${root}|${c.language}|${approval}|${c.maxAgentSteps}`;
+    const common = `${root}|${c.language}|${c.maxAgentSteps}`;
     if (c.multiAgentEnabled) {
       return `multi|${c.roleProvider("communicator")}:${c.roleModel("communicator")}|${c.roleProvider(
         "coder"
@@ -122,14 +152,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     return {
       model: this.config.model,
       maxSteps: this.config.maxAgentSteps,
-      autoApproveReads: this.config.autoApproveReads,
-      autoApproveWrites: this.config.autoApproveFileEdits,
-      autoApproveCommands: this.config.autoApproveCommands,
       language: this.config.language,
+      policy: this.policy,
     };
   }
 
-  /** Construct the active runner (single Agent or multi-agent Orchestrator). */
   private async buildRunner(root: string): Promise<Runner | undefined> {
     const cfg = this.agentConfig();
     if (this.config.multiAgentEnabled) {
@@ -182,12 +209,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
     const root = folder.uri.fsPath;
 
-    // Reuse the same runner across turns so the conversation keeps its history;
-    // rebuild only when the model/mode/config actually changed.
+    // Pick up approval changes made via the Command Palette (plan mode is UI-only).
+    this.policy.autoApproveReads = this.config.autoApproveReads;
+    this.policy.autoApproveWrites = this.config.autoApproveFileEdits;
+    this.policy.autoApproveCommands = this.config.autoApproveCommands;
+
     const signature = this.runnerSignature(root);
     if (!this.runner || signature !== this.runnerSig) {
       const built = await this.buildRunner(root);
-      if (!built) return; // an error was already posted
+      if (!built) return;
       this.runner = built;
       this.runnerSig = signature;
     }
@@ -236,7 +266,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   private post(message: unknown): void {
-    this.view?.webview.postMessage(message);
+    for (const webview of this.webviews) {
+      webview.postMessage(message);
+    }
   }
 
   private html(webview: vscode.Webview): string {
@@ -260,11 +292,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   <title>WayCode</title>
 </head>
 <body>
-  <div id="status" class="status"></div>
+  <header class="topbar">
+    <span class="brand">✳ WayCode</span>
+    <span id="status" class="status"></span>
+  </header>
   <div id="messages" class="messages"></div>
   <div class="composer">
-    <textarea id="input" rows="3" placeholder="Ask WayCode… (Enter to send, Shift+Enter for newline)"></textarea>
+    <textarea id="input" rows="3" placeholder="Ask WayCode…  (Enter to send, Shift+Enter = newline)"></textarea>
     <div class="composer-actions">
+      <button id="planBtn" class="toggle" title="Plan mode: investigate and propose a plan without making changes">📋 Plan</button>
+      <button id="moonBtn" class="toggle" title="No-questions mode: auto-approve every action">🌙</button>
+      <span class="spacer"></span>
       <button id="newTask" title="Start a new task">New task</button>
       <button id="send" class="primary">Send</button>
       <button id="cancel" class="hidden">Stop</button>
@@ -274,6 +312,44 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 </body>
 </html>`;
   }
+}
+
+/** Sidebar view — binds a shared ChatController to the WayCode activity-bar view. */
+export class ChatViewProvider implements vscode.WebviewViewProvider {
+  public static readonly viewType = "waycode.chatView";
+  private view?: vscode.WebviewView;
+
+  constructor(private readonly controller: ChatController) {}
+
+  resolveWebviewView(view: vscode.WebviewView): void {
+    this.view = view;
+    this.controller.bind(view.webview);
+  }
+
+  reveal(): void {
+    this.view?.show?.(true);
+  }
+}
+
+/** Open (or focus) the full-window editor-tab chat, sharing the same controller. */
+let panel: vscode.WebviewPanel | undefined;
+export function openChatPanel(extensionUri: vscode.Uri, controller: ChatController): void {
+  if (panel) {
+    panel.reveal();
+    return;
+  }
+  panel = vscode.window.createWebviewPanel(
+    "waycode.chatPanel",
+    "WayCode",
+    vscode.ViewColumn.Active,
+    { enableScripts: true, retainContextWhenHidden: true }
+  );
+  panel.iconPath = vscode.Uri.joinPath(extensionUri, "media", "icon.svg");
+  controller.bind(panel.webview);
+  panel.onDidDispose(() => {
+    if (panel) controller.unbind(panel.webview);
+    panel = undefined;
+  });
 }
 
 function getNonce(): string {

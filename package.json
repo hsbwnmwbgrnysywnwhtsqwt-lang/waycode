@@ -52,6 +52,12 @@
         "category": "WayCode"
       },
       {
+        "command": "waycode.openPanel",
+        "title": "WayCode: Open in Editor Tab",
+        "category": "WayCode",
+        "icon": "$(window)"
+      },
+      {
         "command": "waycode.newTask",
         "title": "WayCode: New Task",
         "category": "WayCode"
@@ -104,6 +110,13 @@
           "command": "waycode.askSelection",
           "group": "waycode",
           "when": "editorHasSelection"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "waycode.openPanel",
+          "when": "view == waycode.chatView",
+          "group": "navigation"
         }
       ]
     },

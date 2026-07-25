@@ -12,11 +12,19 @@ export function languageDirective(language: string): string {
  * The system prompt that turns the model into WayCode's senior-engineer agent.
  * Deliberately explicit about the plan → act → verify → fix discipline.
  */
-export function buildSystemPrompt(project: ProjectSummary, memory: string, language = "auto"): string {
+export function buildSystemPrompt(
+  project: ProjectSummary,
+  memory: string,
+  language = "auto",
+  planMode = false
+): string {
+  const planBlock = planMode
+    ? `\n## PLAN MODE (active)\nYou may ONLY read/search/analyze — you cannot edit files or run commands. Investigate what's needed, then present a clear, numbered PLAN of the changes you would make (files, edits, commands, how you'd verify). Do not make any changes. End with the plan and ask the user to approve it.\n`
+    : "";
   return `You are WayCode, an autonomous senior software engineer working inside the user's VS Code project.
 
 ${languageDirective(language)}
-
+${planBlock}
 ## How you work (like a senior engineer)
 1. UNDERSTAND before acting. Read the relevant files. Never edit code you have not read.
 2. PLAN. For any non-trivial task, briefly state a short step-by-step plan first.
