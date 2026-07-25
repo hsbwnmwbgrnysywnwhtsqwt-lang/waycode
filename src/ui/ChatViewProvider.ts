@@ -427,13 +427,19 @@ export class ChatController {
 
   private html(webview: vscode.Webview): string {
     const nonce = getNonce();
-    const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, "media", "main.js"));
-    const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, "media", "style.css"));
+    const asset = (name: string) =>
+      webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, "media", name));
+    const scriptUri = asset("main.js");
+    const styleUri = asset("style.css");
+    // Both logo variants are loaded; CSS shows the one that suits the theme.
+    const logoLight = asset("logo-light.png");
+    const logoDark = asset("logo-dark.png");
     const csp = [
       `default-src 'none'`,
       `style-src ${webview.cspSource}`,
       `script-src 'nonce-${nonce}'`,
       `font-src ${webview.cspSource}`,
+      `img-src ${webview.cspSource}`,
     ].join("; ");
 
     return `<!DOCTYPE html>
@@ -445,9 +451,13 @@ export class ChatController {
   <link href="${styleUri}" rel="stylesheet" />
   <title>WayCode</title>
 </head>
-<body>
+<body data-logo-light="${logoLight}" data-logo-dark="${logoDark}">
   <header class="topbar">
-    <span class="brand">✳ WayCode</span>
+    <span class="brand">
+      <img class="brand-logo logo-light" src="${logoLight}" alt="" />
+      <img class="brand-logo logo-dark" src="${logoDark}" alt="" />
+      WayCode
+    </span>
     <span id="status" class="status"></span>
   </header>
   <div id="messages" class="messages"></div>

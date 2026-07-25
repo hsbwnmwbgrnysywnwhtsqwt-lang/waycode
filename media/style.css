@@ -26,9 +26,32 @@ body {
   border-bottom: 1px solid var(--vscode-panel-border);
 }
 .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 700;
   white-space: nowrap;
   color: var(--vscode-foreground);
+}
+.brand-logo {
+  height: 15px;
+  width: auto;
+}
+
+/* The logo ships as a light/dark pair (dark strokes vs. white strokes on a
+   transparent background). Show whichever one the active theme can actually
+   see: the dark-stroke mark by default, the white-stroke mark on dark and
+   dark-high-contrast themes. */
+.logo-dark {
+  display: none;
+}
+body.vscode-dark .logo-dark,
+body.vscode-high-contrast:not(.vscode-high-contrast-light) .logo-dark {
+  display: block;
+}
+body.vscode-dark .logo-light,
+body.vscode-high-contrast:not(.vscode-high-contrast-light) .logo-light {
+  display: none;
 }
 .status {
   flex: 1;
@@ -205,6 +228,12 @@ pre.diff {
 }
 .welcome h3 {
   margin-top: 0;
+}
+.welcome-logo {
+  width: 128px;
+  max-width: 60%;
+  height: auto;
+  margin: 2px auto 12px;
 }
 
 .msg.assistant {

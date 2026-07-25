@@ -10,6 +10,12 @@ export interface ToolPreview {
   diff?: string;
   /** Optional plain detail (e.g. the command to run). */
   detail?: string;
+  /**
+   * This specific call destroys existing work (e.g. an overwrite that throws
+   * away most of a file). Auto-approve modes deliberately do NOT cover these —
+   * the user is always asked, however permissive the run policy is.
+   */
+  destructive?: boolean;
 }
 
 export interface ToolContext {

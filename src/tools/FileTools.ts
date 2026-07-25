@@ -87,7 +87,11 @@ export class FileWriteTool implements Tool {
     const abs = safeResolve(ctx.workspaceRoot, rel);
     const before = (await exists(abs)) ? await fs.readFile(abs, "utf8") : "";
 
-    const preview = { title: `Write ${rel}`, diff: makeDiff(before, content, rel) };
+    const preview = {
+      title: `Write ${rel}`,
+      diff: makeDiff(before, content, rel),
+      destructive: isDestructiveOverwrite(before, content),
+    };
     if (!(await ctx.requestApproval(preview))) {
       return { output: "User rejected the file write.", isError: true };
     }
@@ -171,6 +175,23 @@ export class ListFilesTool implements Tool {
     ctx.log(`📁 Listed ${toRelative(ctx.workspaceRoot, abs) || "."}`);
     return { output: lines.join("\n") || "(empty directory)" };
   }
+}
+
+/** Below this size an overwrite can't destroy much, so it's never gated. */
+const SMALL_FILE_BYTES = 400;
+/** Keeping less than this fraction of a file's content is a wipe, not an edit. */
+const WIPE_RATIO = 0.5;
+
+/**
+ * True when overwriting `before` with `after` throws away most of an existing
+ * file. A model that summarises its work into the file it was asked to change —
+ * or that fires a speculative "step 10" write — collapses a large file to a few
+ * lines. That is never a legitimate targeted change, so it must be confirmed
+ * even in auto mode. Growing or modestly rewriting a file is left alone.
+ */
+export function isDestructiveOverwrite(before: string, after: string): boolean {
+  if (before.length <= SMALL_FILE_BYTES) return false;
+  return after.length < before.length * WIPE_RATIO;
 }
 
 async function exists(p: string): Promise<boolean> {

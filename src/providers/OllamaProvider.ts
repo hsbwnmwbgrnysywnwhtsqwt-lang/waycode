@@ -58,7 +58,8 @@ export class OllamaProvider implements AIProvider {
     // Fallback: many local models (incl. qwen2.5-coder) emit tool calls as JSON
     // text in `content` instead of the structured `tool_calls` field. Recover them.
     if (!toolCalls.length && text.trim()) {
-      const extracted = extractToolCallsFromText(text);
+      const offered = new Set(req.tools.map((t) => t.name));
+      const extracted = extractToolCallsFromText(text, offered);
       if (extracted.calls.length) {
         toolCalls = extracted.calls;
         text = extracted.remainder;
@@ -131,12 +132,29 @@ function makeCall(o: any, i: number): ToolCall {
  * Recover tool calls that a local model emitted as text instead of using the
  * structured field. Handles: <tool_call>{…}</tool_call> tags (qwen native),
  * ```json fenced blocks, and a bare JSON object/array that is the whole content.
+ *
+ * The recovered calls are EXECUTED, so the looser the shape, the stricter the
+ * rules. Small local models routinely answer with a numbered PLAN carrying one
+ * speculative JSON call per step; running the whole list fires edits and
+ * commands the model never got to reconsider after seeing the first result
+ * (this is how a "step 10" write_file once overwrote a README). So:
+ *
+ * - <tool_call> tags are the model's native declaration format — a batch of
+ *   them is deliberate and is honoured as written.
+ * - Fenced blocks and bare JSON in prose are ambiguous: take the FIRST call
+ *   only, and feed its result back so the model continues one step at a time.
+ * - Bare JSON in prose, the loosest shape of all, must also name a tool that
+ *   was actually offered. A call-shaped object in prose (a code sample, a
+ *   config snippet) is text, not an action.
  */
-function extractToolCallsFromText(text: string): { calls: ToolCall[]; remainder: string } {
+function extractToolCallsFromText(
+  text: string,
+  offered: ReadonlySet<string>
+): { calls: ToolCall[]; remainder: string } {
   const calls: ToolCall[] = [];
   let i = 0;
 
-  // 1) <tool_call>…</tool_call> blocks
+  // 1) <tool_call>…</tool_call> blocks — an explicit declaration; a batch is real.
   const tagRe = /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/g;
   let m: RegExpExecArray | null;
   while ((m = tagRe.exec(text)) !== null) {
@@ -145,30 +163,28 @@ function extractToolCallsFromText(text: string): { calls: ToolCall[]; remainder:
   }
   if (calls.length) return { calls, remainder: text.replace(tagRe, "").trim() };
 
-  // 2) ```json fenced blocks
+  // 2) ```json fenced blocks — ambiguous, so the first call only.
   const fenceRe = /```(?:json|tool_call)?\s*([\s\S]*?)```/g;
   while ((m = fenceRe.exec(text)) !== null) {
     const obj = tryParseJson(m[1]);
     if (looksLikeCall(obj)) calls.push(makeCall(obj, i++));
     else if (Array.isArray(obj)) for (const o of obj) if (looksLikeCall(o)) calls.push(makeCall(o, i++));
+    if (calls.length) break;
   }
-  if (calls.length) return { calls, remainder: text.replace(fenceRe, "").trim() };
+  if (calls.length) return { calls: calls.slice(0, 1), remainder: text.replace(fenceRe, "").trim() };
 
   // 3) Balanced JSON object(s) anywhere in the text — handles models that wrap
-  //    the tool call in explanatory prose (e.g. "…let's proceed. {…}").
-  let remainder = text;
+  //    the tool call in explanatory prose (e.g. "…let's proceed. {…}"). Loosest
+  //    shape: the name must be a real, offered tool, and the first call only.
+  const accept = (o: unknown): boolean => looksLikeCall(o) && offered.has(String((o as any).name));
   for (const raw of findBalancedJsonObjects(text)) {
     const obj = tryParseJson(raw);
-    if (looksLikeCall(obj)) {
-      calls.push(makeCall(obj, i++));
-      remainder = remainder.split(raw).join("");
-    } else if (Array.isArray(obj)) {
-      let matched = false;
-      for (const o of obj) if (looksLikeCall(o)) { calls.push(makeCall(o, i++)); matched = true; }
-      if (matched) remainder = remainder.split(raw).join("");
+    if (accept(obj)) calls.push(makeCall(obj, i++));
+    else if (Array.isArray(obj)) for (const o of obj) if (accept(o)) calls.push(makeCall(o, i++));
+    if (calls.length) {
+      return { calls: calls.slice(0, 1), remainder: text.split(raw).join("").trim() };
     }
   }
-  if (calls.length) return { calls, remainder: remainder.trim() };
 
   return { calls, remainder: text };
 }

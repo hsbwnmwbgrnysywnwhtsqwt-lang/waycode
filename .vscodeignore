@@ -1,8 +1,14 @@
 .vscode/**
 .vscode-test/**
+.github/**
+.claude/**
 src/**
+out/test/**
+node_modules/**
 .gitignore
+.vscodeignore
 tsconfig.json
+waycode-*.vsix
+Gemini_Generated_Image_*.png
 **/*.map
 **/*.ts
-node_modules/**

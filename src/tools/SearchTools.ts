@@ -42,8 +42,28 @@ export class GrepTool implements Tool {
     ctx.log(`🔍 search "${pattern}"`);
     const res = await runCommand(command, ctx.workspaceRoot, 60_000);
     const out = res.stdout.trim() || "(no matches)";
-    return { output: out };
+    return { output: capMatches(out) };
   }
+}
+
+/** Keep a broad search from swamping a small local model's context window. */
+const MAX_MATCH_LINES = 120;
+
+/**
+ * Trim a long match list, keeping enough to see WHICH files are involved. A
+ * broad pattern can match thousands of lines; a 7B model handed all of them
+ * loses the thread entirely, so we cut it and say so explicitly (the model needs
+ * to know the list is partial, otherwise it will "conclude" from a slice).
+ */
+export function capMatches(out: string, maxLines = MAX_MATCH_LINES): string {
+  const lines = out.split("\n");
+  if (lines.length <= maxLines) return out;
+  const files = new Set(lines.map((l) => l.split(":")[0]).filter(Boolean));
+  return [
+    lines.slice(0, maxLines).join("\n"),
+    `… ${lines.length - maxLines} more matching lines across ${files.size} files were cut.`,
+    `This list is PARTIAL — narrow the pattern or pass a glob before drawing any conclusion.`,
+  ].join("\n");
 }
 
 /**

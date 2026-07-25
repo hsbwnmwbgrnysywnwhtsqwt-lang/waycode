@@ -246,6 +246,12 @@
   function addApproval(id, preview) {
     const wrap = el("div", "approval");
     wrap.appendChild(el("div", "title", "⚠️ Approval required: " + preview.title));
+    if (preview.destructive) {
+      // Asked even in auto mode — say why, so it is not approved on reflex.
+      wrap.appendChild(
+        el("div", "log", "🛑 This overwrite discards most of the existing file. Auto-approve does not cover it.")
+      );
+    }
     if (preview.diff) {
       wrap.appendChild(renderDiff(preview.diff));
     } else if (preview.detail) {
@@ -421,9 +427,27 @@
     if (w) w.remove();
   }
 
+  /** The logo pair, as webview URIs handed over on the body element. */
+  function logoPair(className) {
+    const frag = document.createDocumentFragment();
+    [["logo-light", document.body.dataset.logoLight], ["logo-dark", document.body.dataset.logoDark]].forEach(
+      function (pair) {
+        if (!pair[1]) return;
+        const img = document.createElement("img");
+        img.className = className + " " + pair[0];
+        img.src = pair[1];
+        img.alt = "";
+        frag.appendChild(img);
+      }
+    );
+    return frag;
+  }
+
   function showWelcome() {
     const w = el("div", "welcome");
-    w.innerHTML = renderMarkdown(
+    w.appendChild(logoPair("welcome-logo"));
+    const body = el("div");
+    body.innerHTML = renderMarkdown(
       [
         "### 👋 Welcome to WayCode",
         "I'm your AI coding agent. To get started:",
@@ -434,6 +458,7 @@
         "Open a project folder, then ask me anything — in your own language.",
       ].join("\n")
     );
+    w.appendChild(body);
     messagesEl.appendChild(w);
   }
 

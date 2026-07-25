@@ -2,7 +2,7 @@
   "name": "waycode",
   "displayName": "WayCode",
   "description": "Professional AI coding agent for VS Code — understands natural language (including Hebrew), whole projects, writes and edits code, runs tests, and fixes itself.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "tools-mishmish",
   "license": "MIT",
   "repository": {
@@ -197,7 +197,18 @@
         "waycode.language": {
           "type": "string",
           "default": "auto",
-          "enum": ["auto", "Hebrew", "English", "Arabic", "Russian", "Spanish", "French", "German", "Portuguese", "Chinese"],
+          "enum": [
+            "auto",
+            "Hebrew",
+            "English",
+            "Arabic",
+            "Russian",
+            "Spanish",
+            "French",
+            "German",
+            "Portuguese",
+            "Chinese"
+          ],
           "description": "Language the assistant replies in. 'auto' matches the language you write in."
         },
         "waycode.maxAgentSteps": {
@@ -227,8 +238,20 @@
         },
         "waycode.roles.communicator.provider": {
           "type": "string",
-          "enum": ["", "anthropic", "openai", "ollama", "claude-cli"],
-          "enumDescriptions": ["Use the default provider (waycode.provider)", "Anthropic", "OpenAI", "Ollama", "Claude Code CLI (no key)"],
+          "enum": [
+            "",
+            "anthropic",
+            "openai",
+            "ollama",
+            "claude-cli"
+          ],
+          "enumDescriptions": [
+            "Use the default provider (waycode.provider)",
+            "Anthropic",
+            "OpenAI",
+            "Ollama",
+            "Claude Code CLI (no key)"
+          ],
           "default": "ollama",
           "description": "Provider for the COMMUNICATOR role (understands the user and explains results). Empty = use waycode.provider. Defaults to a local Ollama model so the personal assistant runs entirely on your machine."
         },
@@ -239,8 +262,20 @@
         },
         "waycode.roles.coder.provider": {
           "type": "string",
-          "enum": ["", "anthropic", "openai", "ollama", "claude-cli"],
-          "enumDescriptions": ["Use the default provider (waycode.provider)", "Anthropic", "OpenAI", "Ollama", "Claude Code CLI (no key)"],
+          "enum": [
+            "",
+            "anthropic",
+            "openai",
+            "ollama",
+            "claude-cli"
+          ],
+          "enumDescriptions": [
+            "Use the default provider (waycode.provider)",
+            "Anthropic",
+            "OpenAI",
+            "Ollama",
+            "Claude Code CLI (no key)"
+          ],
           "default": "",
           "description": "Provider for the CODER role (writes/edits code). Empty = use waycode.provider."
         },

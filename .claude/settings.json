@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(npx --yes @vscode/vsce ls)",
+      "Bash(npx --no-install vsce --version)"
     ]
   }
 }

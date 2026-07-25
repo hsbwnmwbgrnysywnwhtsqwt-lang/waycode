@@ -2,6 +2,16 @@
 
 All notable changes to WayCode are documented here.
 
+## [1.0.1]
+
+### Added
+- **README** — the extension shipped with an empty one; it now documents what
+  WayCode does, the agent loop, the multi-agent pipeline, modes, tools,
+  providers, commands and settings, with a Hebrew summary.
+- **Package metadata** — `repository`, `bugs`, and `homepage`, so the README's
+  relative links and the logo resolve on the Marketplace (and so `vsce package`
+  succeeds at all).
+
 ## [Unreleased]
 
 ### Added
