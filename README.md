@@ -29,7 +29,7 @@
 - **Command Palette** integration (`WayCode: …`).
 - **Agent engine** that plans → acts → verifies → fixes in a loop.
 - **Multi-agent pipeline (role-based)** — an optional mode where a **communicator bot** (strong at your language, e.g. Hebrew) understands you and explains results, while a separate **coder bot** (strong at code, e.g. Qwen Coder) does the engineering. Each role runs on its own provider/model.
-- **Pluggable AI providers** — switch between **Anthropic (Claude)**, **OpenAI (GPT)**, **Google (Gemini)**, and **local models via Ollama** with one command.
+- **Pluggable AI providers** — switch between **Anthropic (Claude)**, **OpenAI (GPT)**, and **local models via Ollama** with one command.
 - **Tool system** — read/create/edit files, search code, run the terminal, git, tests, linters, and an error analyzer.
 - **Change previews & approval** — every write/command is shown as a diff or command and requires your approval before it runs.
 - **Memory & context** — remembers project structure, pinned files, decisions, and preferences per workspace.
@@ -46,7 +46,6 @@ src/
 │   ├── types.ts            #   neutral request/response/tool types
 │   ├── AnthropicProvider.ts
 │   ├── OpenAIProvider.ts
-│   ├── GeminiProvider.ts
 │   ├── OllamaProvider.ts
 │   └── ProviderFactory.ts  #   createProvider(id, creds) — swap models here
 ├── tools/                  # Every agent capability is a Tool
@@ -101,14 +100,14 @@ dependencies — and in CI (GitHub Actions) on Node 18 and 20.
 |-----------|--------------------------|--------------|
 | Anthropic | `claude-sonnet-4-5`      | ✅           |
 | OpenAI    | `gpt-4o`                 | ✅           |
-| Gemini    | `gemini-2.0-flash`       | ✅           |
-| Ollama    | `llama3.1` (local)       | ❌           |
+| Ollama    | `gemma2` (local)         | ❌           |
 | Claude Code (CLI) | `sonnet`         | ❌ (uses your Claude subscription) |
 
-**Fully local setup (no API key, no cloud):** point both roles at **Ollama**. Use a
-language-strong local model such as **`gemma2:9b`** as the **communicator** (excellent
-Hebrew, runs on your machine) and a code-strong local model such as **`qwen2.5-coder`**
-as the **coder**. Nothing leaves your machine and no keys are needed.
+**The communicator (personal assistant) role defaults to local Ollama + `gemma2`** — no
+API key, nothing leaves your machine, and it's excellent at Hebrew. Install
+[Ollama](https://ollama.com) and run `ollama pull gemma2` to use it. Point the **coder**
+role at Ollama too (e.g. a code-strong local model such as `qwen2.5-coder`) for a fully
+local setup with no cloud calls at all.
 
 **Claude Code CLI provider (no API key):** if you have the `claude` CLI installed
 and signed in, you can instead pick provider **`claude-cli`** to use Claude through your

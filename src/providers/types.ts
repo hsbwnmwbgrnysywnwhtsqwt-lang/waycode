@@ -1,6 +1,6 @@
 /**
  * Provider-agnostic types shared by every AI backend.
- * Each concrete provider (Anthropic, OpenAI, Gemini, Ollama) maps these
+ * Each concrete provider (Anthropic, OpenAI, Ollama) maps these
  * neutral shapes to and from its own wire format.
  */
 

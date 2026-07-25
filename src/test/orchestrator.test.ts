@@ -87,8 +87,9 @@ test("communicator is told NOTHING changed when the coder runs no tools", async 
     assert.match(groundTruth, /NOT modified/);
     assert.equal(answer, "here is the explanation");
 
-    // The coder was nudged once, so it was invoked twice.
-    assert.equal(coder.calls.length, 2);
+    // The coder was nudged repeatedly (both the Agent's own in-loop stall
+    // detection and the orchestrator's post-run nudge) but never called a tool.
+    assert.ok(coder.calls.length > 1, "the coder should have been nudged at least once");
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }

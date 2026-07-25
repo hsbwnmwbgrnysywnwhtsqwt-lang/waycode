@@ -95,6 +95,10 @@ export class Agent {
       log: (m) => events.onLog(m),
     };
 
+    let ranAnyTool = false;
+    let stallNudges = 0;
+    const MAX_STALL_NUDGES = 2;
+
     try {
       for (let step = 0; step < this.config.maxSteps; step++) {
         if (this.cancelled) {
@@ -132,8 +136,24 @@ export class Agent {
         });
 
         if (!response.toolCalls.length) {
+          // The model announced a plan/next-step but never called a tool — a
+          // stall our system prompt explicitly forbids. Nudge it to act instead
+          // of ending the task with nothing done. Bounded so it can't loop
+          // forever, and only while this run has done zero real work.
+          if (!ranAnyTool && !planMode && stallNudges < MAX_STALL_NUDGES && looksLikeStall(response.text)) {
+            stallNudges++;
+            events.onLog(`↻ No tool call yet — nudging the model to act (${stallNudges}/${MAX_STALL_NUDGES}).`);
+            this.history.push({
+              role: "user",
+              content:
+                "You did not call any tool — nothing was done. Stop describing a plan and CALL THE TOOL(S) now, in this message.",
+            });
+            continue;
+          }
           break; // Model produced a final answer.
         }
+
+        ranAnyTool = true;
 
         // Execute each requested tool and collect results for the next turn.
         const results: ToolResult[] = [];
@@ -196,4 +216,17 @@ export class Agent {
   reset(): void {
     this.history.length = 0;
   }
+}
+
+/**
+ * Detects the specific anti-pattern our system prompt forbids: announcing a
+ * plan / next step without calling a tool, instead of just acting. Deliberately
+ * narrow (requires an explicit "asking permission" or "about to start" phrase)
+ * so a genuine, complete conversational answer is never mistaken for a stall.
+ */
+function looksLikeStall(text: string): boolean {
+  if (!text.trim()) return false;
+  const stallPhrases =
+    /\b(let'?s start|i will now|i'll now|let me start|going to start|please confirm|let me know if|would you like me to|shall i|should i proceed|here is my plan|here's my plan)\b/i;
+  return stallPhrases.test(text);
 }

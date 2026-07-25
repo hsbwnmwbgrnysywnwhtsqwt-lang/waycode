@@ -21,7 +21,6 @@
     "assistant",
     "openai",
     "anthropic",
-    "gemini",
     "ollama"
   ],
   "activationEvents": [],
@@ -156,14 +155,12 @@
           "enum": [
             "anthropic",
             "openai",
-            "gemini",
             "ollama",
             "claude-cli"
           ],
           "enumDescriptions": [
             "Anthropic API (key)",
             "OpenAI API (key)",
-            "Google Gemini API (key)",
             "Local Ollama (no key)",
             "Claude Code CLI — uses your Claude subscription, no key"
           ],
@@ -173,7 +170,7 @@
         "waycode.model": {
           "type": "string",
           "default": "claude-sonnet-4-5",
-          "description": "Model id for the active provider (e.g. claude-sonnet-4-5, gpt-4o, gemini-2.0-flash, llama3.1)."
+          "description": "Model id for the active provider (e.g. claude-sonnet-4-5, gpt-4o, gemma2, llama3.1)."
         },
         "waycode.ollama.baseUrl": {
           "type": "string",
@@ -218,20 +215,20 @@
         },
         "waycode.roles.communicator.provider": {
           "type": "string",
-          "enum": ["", "anthropic", "openai", "gemini", "ollama", "claude-cli"],
-          "enumDescriptions": ["Use the default provider (waycode.provider)", "Anthropic", "OpenAI", "Gemini", "Ollama", "Claude Code CLI (no key)"],
-          "default": "",
-          "description": "Provider for the COMMUNICATOR role (understands the user and explains results). Empty = use waycode.provider."
+          "enum": ["", "anthropic", "openai", "ollama", "claude-cli"],
+          "enumDescriptions": ["Use the default provider (waycode.provider)", "Anthropic", "OpenAI", "Ollama", "Claude Code CLI (no key)"],
+          "default": "ollama",
+          "description": "Provider for the COMMUNICATOR role (understands the user and explains results). Empty = use waycode.provider. Defaults to a local Ollama model so the personal assistant runs entirely on your machine."
         },
         "waycode.roles.communicator.model": {
           "type": "string",
-          "default": "",
-          "description": "Model id for the communicator role. Empty = the provider's default model. Pick a model strong at natural language (e.g. Hebrew) — a local Ollama model like gemma2:9b works well and runs on your machine."
+          "default": "gemma2",
+          "description": "Model id for the communicator role. Pick a model strong at natural language (e.g. Hebrew) — the local Ollama model gemma2 (or gemma2:9b) works well and runs on your machine."
         },
         "waycode.roles.coder.provider": {
           "type": "string",
-          "enum": ["", "anthropic", "openai", "gemini", "ollama", "claude-cli"],
-          "enumDescriptions": ["Use the default provider (waycode.provider)", "Anthropic", "OpenAI", "Gemini", "Ollama", "Claude Code CLI (no key)"],
+          "enum": ["", "anthropic", "openai", "ollama", "claude-cli"],
+          "enumDescriptions": ["Use the default provider (waycode.provider)", "Anthropic", "OpenAI", "Ollama", "Claude Code CLI (no key)"],
           "default": "",
           "description": "Provider for the CODER role (writes/edits code). Empty = use waycode.provider."
         },
