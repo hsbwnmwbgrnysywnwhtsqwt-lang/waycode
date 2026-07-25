@@ -1,4 +1,4 @@
-import { AIProvider, ToolCall } from "../providers/types";
+import { AIProvider, ChatMessage, ToolCall } from "../providers/types";
 import { ToolRegistry } from "../tools/ToolRegistry";
 import { ProjectContext } from "../context/ProjectContext";
 import { Memory } from "../memory/Memory";
@@ -8,6 +8,7 @@ import {
   buildCommunicatorOutPrompt,
 } from "./prompts";
 import { classifyRoute } from "./routing";
+import { trimHistory } from "./history";
 
 export interface RoleModel {
   provider: AIProvider;
@@ -29,6 +30,13 @@ export interface RoleModel {
  */
 export class Orchestrator {
   private currentCoder?: Agent;
+  /**
+   * The user-facing conversation with the COMMUNICATOR (what the user typed and
+   * what they were actually shown), persisted across turns so it has memory.
+   * The router's internal CHAT:/CODE: protocol text and the coder's ground-truth
+   * blob are never stored here — only the real exchange, kept clean for context.
+   */
+  private history: ChatMessage[] = [];
 
   constructor(
     private readonly communicator: RoleModel,
@@ -46,17 +54,20 @@ export class Orchestrator {
 
   reset(): void {
     this.currentCoder?.reset();
+    this.history = [];
   }
 
   async run(userMessage: string, events: AgentEvents): Promise<void> {
     try {
       const summary = await this.project.summarize();
+      // Conversation so far, BEFORE this turn — reused by both communicator calls.
+      const priorHistory = trimHistory(this.history);
 
       // ---- Phase 1: communicator understands the user and ROUTES -----------
       events.onPhase?.("communicator-in", "🗣️ Language bot is reading your message…");
       const routeResponse = await this.communicator.provider.complete({
         system: buildCommunicatorInPrompt(summary, this.config.language),
-        messages: [{ role: "user", content: userMessage }],
+        messages: [...priorHistory, { role: "user", content: userMessage }],
         tools: [],
         model: this.communicator.model,
         temperature: 0.2,
@@ -67,7 +78,9 @@ export class Orchestrator {
       // CHAT: the language bot answers directly — no coder involved.
       if (route.kind === "chat") {
         events.onPhase?.("route-chat", "🧭 Handled directly (conversation)");
-        events.onAssistantText(route.content || "🙂");
+        const answer = route.content || "🙂";
+        events.onAssistantText(answer);
+        this.history.push({ role: "user", content: userMessage }, { role: "assistant", content: answer });
         events.onDone();
         return;
       }
@@ -116,6 +129,7 @@ export class Orchestrator {
       const explainResponse = await this.communicator.provider.complete({
         system: buildCommunicatorOutPrompt(this.config.language),
         messages: [
+          ...priorHistory,
           {
             role: "user",
             content:
@@ -134,7 +148,10 @@ export class Orchestrator {
         temperature: 0.2,
         maxTokens: 1500,
       });
-      events.onAssistantText(explainResponse.text.trim() || coderSummary || "Done.");
+      const explanation = explainResponse.text.trim() || coderSummary || "Done.";
+      events.onAssistantText(explanation);
+      // Only the real exchange enters history — not the internal spec/ground-truth.
+      this.history.push({ role: "user", content: userMessage }, { role: "assistant", content: explanation });
       events.onDone();
     } catch (err) {
       events.onError(err instanceof Error ? err.message : String(err));

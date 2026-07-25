@@ -95,6 +95,42 @@ test("communicator is told NOTHING changed when the coder runs no tools", async 
   }
 });
 
+test("the communicator remembers prior turns across separate run() calls", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "waycode-orch-"));
+  try {
+    const comm = scripted("comm", ["CHAT: Nice to meet you, Dana!", "CHAT: Your name is Dana."]);
+    const coder = scripted("coder", ["should never be called"]);
+
+    const orch = new Orchestrator(
+      { provider: comm.provider, model: "c" },
+      { provider: coder.provider, model: "d" },
+      ToolRegistry.default(),
+      new ProjectContext(dir),
+      fakeMemory(),
+      {
+        model: "d",
+        maxSteps: 4,
+        language: "auto",
+        policy: { autoApproveReads: true, autoApproveWrites: true, autoApproveCommands: true, planMode: false },
+      },
+      dir
+    );
+
+    await orch.run("Hi, I'm Dana", noopEvents());
+    let answer2 = "";
+    await orch.run("What's my name?", noopEvents({ onAssistantText: (t) => (answer2 = t) }));
+
+    assert.equal(answer2, "Your name is Dana.");
+    // The second router call must include the first exchange as prior context.
+    const secondCall = comm.calls[1];
+    const joined = secondCall.messages.map((m) => m.content ?? "").join("\n");
+    assert.match(joined, /Hi, I'm Dana/);
+    assert.match(joined, /Nice to meet you, Dana!/);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("a CHAT route answers directly without invoking the coder", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "waycode-orch-"));
   try {
