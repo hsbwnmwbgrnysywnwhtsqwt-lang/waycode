@@ -532,3 +532,36 @@ button:hover {
 .hidden {
   display: none !important;
 }
+
+/* ── Top bar actions: new task / history / settings live here now, so the
+   composer keeps only what belongs to composing a message. ───────────────── */
+.topbar-actions {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+  margin-inline-start: auto;
+}
+.topbar-actions .toggle {
+  padding: 0.25rem 0.45rem;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+/* The status line moved out of the top bar so the model/mode text has room
+   instead of being squeezed against the buttons. */
+#status.status {
+  display: block;
+  padding: 0.3rem 0.75rem 0.4rem;
+  font-size: 0.75rem;
+  opacity: 0.75;
+  border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.25));
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+/* Stop reads as a stop, not as another neutral button. */
+.composer-actions button.danger {
+  background: var(--vscode-inputValidation-errorBackground, #5a1d1d);
+  color: var(--vscode-foreground);
+  border-color: var(--vscode-inputValidation-errorBorder, #be1100);
+}

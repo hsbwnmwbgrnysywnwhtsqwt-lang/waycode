@@ -154,3 +154,33 @@ button.primary {
   display: flex;
   justify-content: flex-end;
 }
+
+/* Verdict shown under an Ollama model dropdown (see modelField in settings.js). */
+.model-hint {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+.model-hint.warn {
+  color: var(--vscode-editorWarning-foreground, #cca700);
+  opacity: 1;
+}
+
+/* Recommended coder models, shown under the coder's model field. */
+.recommend {
+  margin-top: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.35));
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+.recommend-title { font-weight: 600; margin-bottom: 0.4rem; }
+.recommend-item { margin-bottom: 0.45rem; }
+.recommend-item code { font-family: var(--vscode-editor-font-family, monospace); }
+.recommend-req { opacity: 0.75; }
+.recommend-why { opacity: 0.7; margin-top: 0.1rem; }
+.recommend-advice {
+  margin-top: 0.5rem;
+  color: var(--vscode-editorWarning-foreground, #cca700);
+  line-height: 1.4;
+}

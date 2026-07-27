@@ -2,6 +2,120 @@
 
 All notable changes to WayCode are documented here.
 
+## [1.0.2]
+
+### Added
+- **`copy_file` — duplicating a file no longer goes through the model.** Asked to
+  "make index.html again as indxxx.html", the coder read the 495-line page and
+  then *re-created* it from memory, producing a 284-byte placeholder that shared
+  nothing with the original but the doctype. Duplication is deterministic, so it
+  now has a tool: `copy_file` copies byte for byte (aliased from `cp`, `copy`,
+  `rename_file`, `mv`, `duplicate_file`), refuses to clobber an existing file
+  unless asked, and always prompts when it would replace real content. The system
+  prompt tells the agent to copy and then edit the copy, never to regenerate.
+- **Paste and drag-and-drop attachments** — Cmd+V a screenshot or drag a file
+  from Finder onto the chat. A clipboard image has no filename, so one is
+  generated from its MIME type; pasted text still behaves normally.
+- **Send while the agent is working.** Send no longer locks during a run: a
+  message typed mid-turn is shown immediately, queued, and runs when the current
+  one finishes. Pressing Stop discards the queue, because Stop means "not this
+  direction".
+
+- **Upload files and images from anywhere** — the 📎 button opens a native file
+  dialog, copies what you pick into `.waycode/uploads/` in the workspace and
+  attaches it as a context chip. Copying is deliberate: every tool refuses to
+  resolve a path outside the workspace, so a file left elsewhere would be visible
+  in the chat but unreadable to the agent. Binary and image attachments are named
+  and sized in the prompt instead of being inlined as mojibake.
+- **New task, history and settings moved to the top bar**, leaving the composer
+  for composing. The status line moved to its own row so the model and mode text
+  is no longer squeezed, and Stop is now styled as a stop.
+- **One conversation across both agents** — in multi-agent mode the coder was
+  only ever shown the English task spec, so a chat-only turn ("call it Test, not
+  waycode") never reached it and the two roles remembered different
+  conversations. Chat turns and the final user-facing explanation are now
+  recorded into the coder's history too.
+
+- **SEARCH/REPLACE edits — file editing that works on any model.** Small local
+  coder models cannot reliably emit a tool call for an edit: measured here, asked
+  to add a card to a 495-line file, qwen2.5-coder truncates the JSON around 990
+  characters and sends an empty `old_text`, so the run ends having read the file
+  and changed nothing. Those same models emit SEARCH/REPLACE diff blocks well —
+  it is the format they were trained on. WayCode now accepts them, converts them
+  into ordinary `edit_file`/`create_file` calls, and applies them through the
+  usual diff preview, approval and path-safety checks. A block with no path falls
+  back to the file the model last touched. Strong models keep using native tool
+  calls; weak ones finally have a route that works instead of failing silently.
+- **Ollama model scanning** — the model pickers now read each installed model's
+  size, parameter count, quantization, context window and tool-calling capability
+  straight from the machine, rank them by fitness for the coder role, and warn
+  before you pick one that cannot drive the tools. Includes two recommended local
+  coder models with their real RAM requirements, and an honest note when this
+  machine cannot host either.
+
+### Added
+- **Per-conversation context file** — every chat now keeps its own markdown
+  context file recording each turn: what was asked, which tools *actually* ran,
+  and the answer given. Both the language bot and the coder read it at the start
+  of every turn, so context survives reloads, history trimming, and reopening an
+  old conversation. Open it with *WayCode: Open Conversation Context File*.
+
+### Fixed
+- **Reopening a saved conversation no longer loses its context** — loading a
+  thread from the history repainted the chat but left the *model* with an empty
+  history, so the bots had no idea what had been discussed. The conversation is
+  now replayed into both roles. The same replay covers a mid-thread model switch.
+- **"Webview is disposed" when reopening the editor-tab chat** — the panel's
+  dispose handler read `panel.webview`, which throws once the panel is gone. The
+  handler aborted before clearing the stale panel handle, so the next *Open in
+  Editor Tab* tried to reveal a dead panel. The webview is now captured up front,
+  the same fix is applied to the sidebar view, and a stale handle is recreated
+  instead of surfacing an error.
+- **Half-finished multi-part tasks** — asking for a README *and* a landing page
+  could produce only the README, with the coder reporting success. The
+  orchestrator now compares the files the task spec names against the files any
+  tool actually touched, and makes the coder finish the ones it skipped. The task
+  spec also carries an explicit `Deliverables:` list so nothing is dropped in
+  translation.
+- **A blank chat panel after being hidden and reshown** now repaints the
+  conversation in progress instead of starting empty.
+- Webview message listeners are disposed on unbind, and a rejected `postMessage`
+  to a disposed webview no longer leaves an unhandled rejection.
+- **Pressing Stop no longer breaks the rest of the conversation.** Cancelling
+  mid-turn left tool calls with no matching result in the history, which every
+  chat API rejects — so every later message failed until *New Task*. Skipped
+  calls now get an explicit "cancelled" result. In multi-agent mode, Stop also
+  used to restart the coder immediately, because each follow-up nudge cleared the
+  agent's own cancelled flag.
+- **A second message can no longer start while one is still running.** Two turns
+  sharing a runner interleaved their messages and corrupted the same tool
+  pairing; an error mid-run also re-enabled Send, which is how it happened.
+- **Previews of large files no longer freeze the extension.** The diff builder
+  allocated a table the size of *before × after* lines, so writing a big file
+  could allocate hundreds of millions of cells. It now diffs only the part that
+  actually changed, shows hunks instead of the whole file, and caps the preview.
+- **A tool-free request no longer sends an empty `tools: []`** — the OpenAI API
+  rejects it outright, which broke the communicator role on that provider.
+- **"WayCode: New Task" now actually starts a new task.** The command announced
+  one but never cleared the thread, so the next message still carried the whole
+  previous conversation. Relatedly, *New Task* no longer leaves the old
+  conversation queued for a coder built later in the pipeline.
+- **A coder whose provider fails is no longer nudged twice more**, which repeated
+  the same error three times; the failure is reported once and the explanation
+  bot is told the task did not run instead of describing success.
+- **Running out of agent steps says so** instead of stopping silently, which was
+  indistinguishable from finishing.
+- **The Claude CLI provider no longer crashes the extension host** when `claude`
+  is not installed — the write to its stdin raised an unhandled EPIPE. It now
+  also runs in the workspace folder.
+- Turn numbering in the conversation context file no longer repeats after old
+  turns are trimmed; the model read the duplicate as the same turn happening
+  twice.
+- Inline code and fenced blocks in a reply no longer render as `undefined` (or
+  drop the whole message) when followed by a digit.
+- Scanning for local Ollama models times out instead of hanging the model picker
+  when the configured server is unreachable.
+
 ## [1.0.1]
 
 ### Added

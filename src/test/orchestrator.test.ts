@@ -166,3 +166,103 @@ test("a CHAT route answers directly without invoking the coder", async () => {
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+test("a coder whose provider fails is not nudged twice more with the same error", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "waycode-orch-"));
+  try {
+    const comm = scripted("comm", [
+      "CODE: Goal: write docs.\nDeliverables: README.md",
+      "explained",
+    ]);
+    let coderCalls = 0;
+    const coder: AIProvider = {
+      id: "coder",
+      label: "coder",
+      requiresApiKey: false,
+      async complete(): Promise<CompletionResponse> {
+        coderCalls++;
+        throw new Error("Ollama error 500: model not found");
+      },
+    };
+
+    const orch = new Orchestrator(
+      { provider: comm.provider, model: "c" },
+      { provider: coder, model: "d" },
+      ToolRegistry.default(),
+      new ProjectContext(dir),
+      fakeMemory(),
+      {
+        model: "d",
+        maxSteps: 4,
+        language: "auto",
+        policy: { autoApproveReads: true, autoApproveWrites: true, autoApproveCommands: true, planMode: false },
+      },
+      dir
+    );
+
+    const errors: string[] = [];
+    await orch.run("write a README", noopEvents({ onError: (m) => errors.push(m) }));
+
+    assert.equal(coderCalls, 1, "the failing coder must be called once, not re-nudged");
+    assert.equal(errors.length, 1, `the user should see one error, saw ${errors.length}`);
+
+    // And the explanation must be told the task failed rather than reporting success.
+    const explain = comm.calls[1].messages.map((m) => m.content ?? "").join("\n");
+    assert.match(explain, /coder FAILED/);
+    assert.match(explain, /model not found/);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("Stop actually stops the pipeline instead of restarting the coder", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "waycode-orch-"));
+  try {
+    const comm = scripted("comm", [
+      "CODE: Goal: docs.\nDeliverables: README.md",
+      "explained",
+    ]);
+    let coderCalls = 0;
+    const orch: Orchestrator = new Orchestrator(
+      { provider: comm.provider, model: "c" },
+      {
+        provider: {
+          id: "coder",
+          label: "coder",
+          requiresApiKey: false,
+          async complete(): Promise<CompletionResponse> {
+            coderCalls++;
+            // The user hits Stop while the coder is thinking.
+            orch.cancel();
+            return { text: "I will create the README.", toolCalls: [], stopReason: "end" };
+          },
+        },
+        model: "d",
+      },
+      ToolRegistry.default(),
+      new ProjectContext(dir),
+      fakeMemory(),
+      {
+        model: "d",
+        maxSteps: 4,
+        language: "auto",
+        policy: { autoApproveReads: true, autoApproveWrites: true, autoApproveCommands: true, planMode: false },
+      },
+      dir
+    );
+
+    const logs: string[] = [];
+    let answered = "";
+    await orch.run("write a README", noopEvents({
+      onLog: (m) => logs.push(m),
+      onAssistantText: (t) => (answered = t),
+    }));
+
+    assert.equal(coderCalls, 1, "a cancelled coder must not be nudged back to work");
+    assert.ok(logs.some((l) => l.includes("Cancelled by user")), logs.join(" | "));
+    assert.equal(answered, "", "a cancelled turn produces no invented summary");
+    assert.equal(comm.calls.length, 1, "no explanation round-trip after a cancel");
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});

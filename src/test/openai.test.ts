@@ -69,3 +69,18 @@ test("OpenAI honours a custom baseUrl", async () => {
   await provider.complete({ system: "s", messages: [{ role: "user", content: "hi" }], tools: [], model: "m" });
   assert.equal(calledUrl, "http://localhost:1234/v1/chat/completions");
 });
+
+test("a tool-free call omits `tools` entirely — an empty array is a 400", async () => {
+  // This is the communicator role's request shape: pure text, no tools.
+  let body: any;
+  globalThis.fetch = (async (_url: string, opts: any) => {
+    body = JSON.parse(opts.body);
+    return { ok: true, json: async () => ({ choices: [{ message: { content: "ok" }, finish_reason: "stop" }] }) };
+  }) as unknown as typeof fetch;
+
+  const provider = new OpenAIProvider({ apiKey: "k" });
+  await provider.complete({ system: "s", messages: [{ role: "user", content: "hi" }], tools: [], model: "m" });
+
+  assert.ok(!("tools" in body), "tools must be absent, not []");
+  assert.ok(!("tool_choice" in body), "tool_choice is meaningless without tools");
+});

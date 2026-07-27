@@ -57,3 +57,16 @@ test("Anthropic maps to content blocks and parses text + tool_use", async () => 
   assert.equal(res.stopReason, "tool_use");
   assert.equal(res.usage?.inputTokens, 5);
 });
+
+test("a tool-free call omits `tools` entirely", async () => {
+  let body: any;
+  globalThis.fetch = (async (_url: string, opts: any) => {
+    body = JSON.parse(opts.body);
+    return { ok: true, json: async () => ({ content: [{ type: "text", text: "ok" }], stop_reason: "end_turn" }) };
+  }) as unknown as typeof fetch;
+
+  const provider = new AnthropicProvider({ apiKey: "k" });
+  await provider.complete({ system: "s", messages: [{ role: "user", content: "hi" }], tools: [], model: "m" });
+
+  assert.ok(!("tools" in body), "tools must be absent, not []");
+});

@@ -2,7 +2,7 @@
   "name": "waycode",
   "displayName": "WayCode",
   "description": "Professional AI coding agent for VS Code — understands natural language (including Hebrew), whole projects, writes and edits code, runs tests, and fixes itself.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "publisher": "tools-mishmish",
   "license": "MIT",
   "repository": {
@@ -123,6 +123,11 @@
       {
         "command": "waycode.editContext",
         "title": "WayCode: Edit Project Context File",
+        "category": "WayCode"
+      },
+      {
+        "command": "waycode.openSessionContext",
+        "title": "WayCode: Open Conversation Context File",
         "category": "WayCode"
       }
     ],

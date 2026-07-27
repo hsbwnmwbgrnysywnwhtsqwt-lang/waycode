@@ -61,16 +61,73 @@
     return opts;
   }
 
-  // A model field: dropdown of Ollama models when provider is ollama, else text.
-  function modelField(provider, value) {
-    if (provider === "ollama" && data.ollamaModels.length) {
-      const opts = data.ollamaModels.map(function (m) {
-        return { value: m, label: m };
-      });
-      if (value && data.ollamaModels.indexOf(value) === -1) opts.unshift({ value: value, label: value });
-      return select(opts, value);
+  // The two local models strong enough to drive the tools, with what they cost
+  // in disk and RAM — plus an honest note when this machine cannot host either.
+  function recommendationBox() {
+    const box = el("div", "recommend");
+    box.appendChild(el("div", "recommend-title", "Strong enough for the coder role:"));
+    (data.recommendedCoders || []).forEach(function (r) {
+      const line = el("div", "recommend-item");
+      line.appendChild(el("code", null, r.name));
+      line.appendChild(el("span", "recommend-req", " — " + r.requirement));
+      line.appendChild(el("div", "recommend-why", r.why));
+      box.appendChild(line);
+    });
+    if (data.coderHardwareAdvice) {
+      box.appendChild(el("div", "recommend-advice", "⚠️ " + data.coderHardwareAdvice));
+    } else {
+      box.appendChild(el("div", "recommend-why", "Install with:  ollama pull <name>"));
     }
-    return textInput(value, "model id");
+    return box;
+  }
+
+  // A model field: for Ollama, the models actually installed on this machine,
+  // each labelled with its size/params/context and a verdict on whether it can
+  // drive the tools. `role` is "coder" when a weak pick deserves a live warning.
+  function modelField(provider, value, role) {
+    if (provider !== "ollama" || !data.ollamaModels.length) {
+      return textInput(value, "model id");
+    }
+    const opts = data.ollamaModels.map(function (m) {
+      return { value: m.name, label: m.label };
+    });
+    const known = data.ollamaModels.some(function (m) {
+      return m.name === value;
+    });
+    if (value && !known) opts.unshift({ value: value, label: value + " (not installed)" });
+
+    const sel = select(opts, value);
+    if (role !== "coder") return sel;
+
+    // Warn inline, next to the field, the moment a poor coder is selected.
+    const wrap = el("div");
+    const hint = el("div", "model-hint");
+    function updateHint() {
+      const m = data.ollamaModels.filter(function (x) {
+        return x.name === sel.value;
+      })[0];
+      if (!m) {
+        hint.textContent = "";
+        return;
+      }
+      hint.textContent =
+        m.coderFit === "unusable" || m.coderFit === "weak"
+          ? "⚠️ " + m.note + " — this model will often read files and change nothing."
+          : m.note;
+      hint.className = "model-hint" + (m.coderFit === "good" || m.coderFit === "marginal" ? "" : " warn");
+    }
+    sel.addEventListener("change", updateHint);
+    updateHint();
+    wrap.appendChild(sel);
+    wrap.appendChild(hint);
+    wrap.appendChild(recommendationBox());
+    // Callers read `.value` off whatever modelField returns, so proxy it.
+    Object.defineProperty(wrap, "value", {
+      get: function () {
+        return sel.value;
+      },
+    });
+    return wrap;
   }
 
   function render() {
@@ -103,11 +160,11 @@
     const gen = section("Model", "The single model that handles everything.");
     const providerSel = select(providerOptions(false), data.provider);
     const modelWrap = el("div");
-    let modelCtl = modelField(data.provider, data.model);
+    let modelCtl = modelField(data.provider, data.model, "coder");
     modelWrap.appendChild(modelCtl);
     providerSel.addEventListener("change", function () {
       modelWrap.innerHTML = "";
-      modelCtl = modelField(providerSel.value, "");
+      modelCtl = modelField(providerSel.value, "", "coder");
       modelWrap.appendChild(modelCtl);
     });
     gen.appendChild(row("Provider", providerSel));
@@ -128,11 +185,11 @@
       const r = data.roles[roleKey];
       const provSel = select(providerOptions(true), r.provider);
       const mWrap = el("div");
-      let mCtl = modelField(r.provider, r.model);
+      let mCtl = modelField(r.provider, r.model, roleKey);
       mWrap.appendChild(mCtl);
       provSel.addEventListener("change", function () {
         mWrap.innerHTML = "";
-        mCtl = modelField(provSel.value, "");
+        mCtl = modelField(provSel.value, "", roleKey);
         mWrap.appendChild(mCtl);
       });
       wrap.appendChild(row("Provider", provSel));

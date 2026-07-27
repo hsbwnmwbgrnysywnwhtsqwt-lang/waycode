@@ -55,19 +55,23 @@
     if (isRTL(text)) node.setAttribute("dir", "rtl");
   }
 
-  // Inline markdown: `code`, **bold**, *italic*. Uses text sentinels (WCINLn)
-  // to protect inline-code spans from the bold/italic passes.
+  // Inline markdown: `code`, **bold**, *italic*. Uses text sentinels (WCINLnZ)
+  // to protect inline-code spans from the bold/italic passes. The trailing Z
+  // terminates the index: without it, text that happens to start with a digit
+  // right after a code span ("`x`0") was swallowed into the number and the span
+  // came back as "undefined".
   function inline(s) {
     s = escapeHtml(s);
     const codes = [];
     s = s.replace(/`([^`]+)`/g, function (_, c) {
       codes.push(c);
-      return "WCINL" + (codes.length - 1) + "";
+      return "WCINL" + (codes.length - 1) + "Z";
     });
     s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
     s = s.replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
-    s = s.replace(/WCINL(\d+)/g, function (_, i) {
-      return '<code class="inline">' + codes[i] + "</code>";
+    s = s.replace(/WCINL(\d+)Z/g, function (whole, i) {
+      const code = codes[Number(i)];
+      return code === undefined ? whole : '<code class="inline">' + code + "</code>";
     });
     return s;
   }
@@ -77,7 +81,7 @@
     const blocks = [];
     src = src.replace(/```(\w*)\r?\n?([\s\S]*?)```/g, function (_, lang, code) {
       blocks.push({ lang: lang, code: code.replace(/\r?\n$/, "") });
-      return "WCBLK" + (blocks.length - 1) + "";
+      return "WCBLK" + (blocks.length - 1) + "Z";
     });
     const lines = src.split(/\r?\n/);
     let html = "";
@@ -89,10 +93,10 @@
       }
     };
     for (const line of lines) {
-      const blockMatch = line.match(/^\s*WCBLK(\d+)\s*$/);
-      if (blockMatch) {
+      const blockMatch = line.match(/^\s*WCBLK(\d+)Z\s*$/);
+      const b = blockMatch ? blocks[+blockMatch[1]] : undefined;
+      if (b) {
         closeList();
-        const b = blocks[+blockMatch[1]];
         html +=
           '<div class="code-wrap"><button class="copy-btn" type="button">Copy</button>' +
           '<pre class="code" dir="ltr"' +
@@ -281,8 +285,11 @@
   }
 
   function setRunning(running) {
-    sendBtn.classList.toggle("hidden", running);
+    // Send stays available during a run: a message typed now is queued and runs
+    // when the current one finishes, so the user never has to sit and wait.
     cancelBtn.classList.toggle("hidden", !running);
+    sendBtn.textContent = running ? "Queue" : "Send";
+    sendBtn.title = running ? "Send when the current message finishes" : "Send (Enter)";
     inputEl.disabled = running;
   }
 
@@ -308,6 +315,64 @@
     inputEl.value = "";
     attached = [];
     renderChips();
+  }
+
+  // Paste an image (a screenshot straight from the clipboard) or a file into the
+  // chat. The webview cannot write to disk, so the bytes are handed to the
+  // extension as base64 and it saves them into the workspace.
+  function sendPastedFile(file) {
+    const reader = new FileReader();
+    reader.onload = function () {
+      const result = /** @type {string} */ (reader.result || "");
+      const base64 = result.slice(result.indexOf(",") + 1);
+      if (!base64) return;
+      vscode.postMessage({
+        type: "pasteFile",
+        name: file.name || "",
+        mime: file.type || "",
+        base64: base64,
+      });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function handlePaste(event) {
+    const items = event.clipboardData && event.clipboardData.items;
+    if (!items) return;
+    let handled = false;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].kind !== "file") continue;
+      const file = items[i].getAsFile();
+      if (!file) continue;
+      sendPastedFile(file);
+      handled = true;
+    }
+    // Only swallow the paste when we actually took a file — pasted TEXT must
+    // still land in the textarea as normal.
+    if (handled) event.preventDefault();
+  }
+
+  inputEl.addEventListener("paste", handlePaste);
+  document.addEventListener("paste", function (e) {
+    if (e.target !== inputEl) handlePaste(e);
+  });
+
+  // Drag a file from Finder onto the chat and drop it.
+  document.addEventListener("dragover", function (e) {
+    if (e.dataTransfer && e.dataTransfer.types.indexOf("Files") !== -1) e.preventDefault();
+  });
+  document.addEventListener("drop", function (e) {
+    const files = e.dataTransfer && e.dataTransfer.files;
+    if (!files || !files.length) return;
+    e.preventDefault();
+    for (let i = 0; i < files.length; i++) sendPastedFile(files[i]);
+  });
+
+  const uploadBtn = document.getElementById("uploadBtn");
+  if (uploadBtn) {
+    uploadBtn.addEventListener("click", function () {
+      vscode.postMessage({ type: "upload" });
+    });
   }
 
   addContextBtn.addEventListener("click", function () {
@@ -511,8 +576,11 @@
         setRunning(msg.value);
         break;
       case "error":
+        // Deliberately does NOT clear the running state: an error can arrive in
+        // the middle of a multi-step run (one failed tool, one failed role), and
+        // re-enabling Send there let a second turn start on top of the first.
+        // The extension always posts `running: false` when the turn really ends.
         addMessage("error", "❌ " + msg.text);
-        setRunning(false);
         break;
       case "cleared":
         messagesEl.innerHTML = "";
@@ -524,7 +592,7 @@
         (msg.messages || []).forEach(function (m) {
           addMessage(m.role === "user" ? "user" : "assistant", m.content);
         });
-        addLog("↩︎ Loaded a saved conversation.");
+        addLog(msg.note || "↩︎ Loaded a saved conversation.");
         break;
       case "focusInput":
         inputEl.focus();

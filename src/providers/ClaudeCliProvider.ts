@@ -24,9 +24,10 @@ export class ClaudeCliProvider implements AIProvider {
   readonly label = "Claude Code (CLI, no key)";
   readonly requiresApiKey = false;
 
-  // Credentials are accepted for interface parity but not needed: the CLI
-  // authenticates via the user's existing Claude Code session.
-  constructor(_creds: ProviderCredentials) {}
+  // No API key is needed — the CLI authenticates via the user's existing Claude
+  // Code session. `baseUrl` carries the workspace root, so the CLI runs with the
+  // user's project as its working directory.
+  constructor(private readonly creds: ProviderCredentials) {}
 
   async complete(req: CompletionRequest): Promise<CompletionResponse> {
     const prompt = this.renderConversation(req.messages);
@@ -87,7 +88,10 @@ export class ClaudeCliProvider implements AIProvider {
 
     try {
       return await new Promise((resolve, reject) => {
-        const child = spawn("claude", args, { stdio: ["pipe", "pipe", "pipe"] });
+        const child = spawn("claude", args, {
+          cwd: this.creds.baseUrl,
+          stdio: ["pipe", "pipe", "pipe"],
+        });
         let out = "";
         let err = "";
         let timedOut = false;
@@ -123,6 +127,14 @@ export class ClaudeCliProvider implements AIProvider {
           resolve(this.parseResult(out));
         });
 
+        // When `claude` is not installed, or exits before reading the prompt,
+        // writing to its stdin raises EPIPE/ENOENT on the stream. Without a
+        // listener that becomes an uncaught exception and takes down the whole
+        // extension host, hiding the real error ('claude' not found) reported by
+        // the 'error' handler above.
+        child.stdin.on("error", () => {
+          /* reported via the child's own error/close handlers */
+        });
         child.stdin.write(prompt);
         child.stdin.end();
       });

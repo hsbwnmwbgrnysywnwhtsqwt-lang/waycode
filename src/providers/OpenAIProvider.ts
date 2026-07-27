@@ -26,21 +26,26 @@ export class OpenAIProvider implements AIProvider {
     }
     const baseUrl = this.creds.baseUrl ?? "https://api.openai.com/v1";
 
-    const body = {
+    const body: Record<string, unknown> = {
       model: req.model,
       temperature: req.temperature ?? 0,
       max_tokens: req.maxTokens ?? 4096,
       messages: this.toOpenAIMessages(req.system, req.messages),
-      tools: req.tools.map((t) => ({
+    };
+    // Only send `tools` when there are some: the API rejects an empty array
+    // ("Invalid 'tools': empty array"), which is exactly what the communicator
+    // role sends — it is a pure text call with no tools at all.
+    if (req.tools.length) {
+      body.tools = req.tools.map((t) => ({
         type: "function",
         function: {
           name: t.name,
           description: t.description,
           parameters: t.parameters,
         },
-      })),
-      tool_choice: req.tools.length ? "auto" : undefined,
-    };
+      }));
+      body.tool_choice = "auto";
+    }
 
     const res = await postJson(
       `${baseUrl}/chat/completions`,

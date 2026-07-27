@@ -24,18 +24,22 @@ export class AnthropicProvider implements AIProvider {
       throw new Error("Anthropic API key is not set. Run 'WayCode: Set API Key'.");
     }
 
-    const body = {
+    const body: Record<string, unknown> = {
       model: req.model,
       max_tokens: req.maxTokens ?? 4096,
       temperature: req.temperature ?? 0,
       system: req.system,
       messages: this.toAnthropicMessages(req.messages),
-      tools: req.tools.map((t) => ({
+    };
+    // Omitted rather than sent empty — a tool-free call (the communicator role)
+    // should look like a plain text request to the API.
+    if (req.tools.length) {
+      body.tools = req.tools.map((t) => ({
         name: t.name,
         description: t.description,
         input_schema: t.parameters,
-      })),
-    };
+      }));
+    }
 
     const res = await postJson("https://api.anthropic.com/v1/messages", {
       "x-api-key": this.creds.apiKey,

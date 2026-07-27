@@ -11,6 +11,7 @@ import { Memory } from "../memory/Memory";
 import { buildSystemPrompt } from "./prompts";
 import { trimHistory } from "./history";
 import { readContextFile } from "../context/contextFile";
+import { editBlocksToToolCalls, parseEditBlocks } from "./editBlocks";
 
 /** Events the agent emits so the UI can render progress in real time. */
 export interface AgentEvents {
@@ -53,13 +54,31 @@ export interface AgentConfig {
 }
 
 /**
+ * A past user/assistant exchange replayed into a runner. Structurally identical
+ * to {@link import("../memory/History").SessionMessage}, declared here so the
+ * agent core stays free of any `vscode` dependency.
+ */
+export interface RestoredMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+/**
  * The Agent engine: a plan → act → verify → fix loop driven by tool-calling.
  * Provider-agnostic — it only depends on the {@link AIProvider} interface.
  */
 export class Agent {
   /** Conversation history shared across turns for continuity. */
-  private readonly history: ChatMessage[] = [];
+  private history: ChatMessage[] = [];
   private cancelled = false;
+  /** The conversation's context file, injected into every system prompt. */
+  private sessionContext = "";
+  /**
+   * The file the model most recently read or wrote. Models routinely omit the
+   * path above a SEARCH/REPLACE block when the turn has only touched one file,
+   * so this is what those blocks fall back to.
+   */
+  private lastFileRead?: string;
 
   constructor(
     private readonly provider: AIProvider,
@@ -75,6 +94,38 @@ export class Agent {
   }
 
   /**
+   * Set the conversation's persistent context (the session context file). Read
+   * fresh on every run, so a turn always sees what the previous turns recorded.
+   */
+  setSessionContext(text: string): void {
+    this.sessionContext = text;
+  }
+
+  /**
+   * Replay a saved conversation into the working history, so reopening a thread
+   * from the history — or switching model mid-thread — does not start the model
+   * from zero. Tool calls are not replayed (their results are in the context
+   * file instead), which keeps the transcript valid for every provider.
+   */
+  restore(messages: RestoredMessage[]): void {
+    this.history = messages
+      .filter((m) => m.content?.trim())
+      .map((m) => ({ role: m.role, content: m.content }));
+  }
+
+  /**
+   * Record an exchange that happened WITHOUT this agent running — used by the
+   * multi-agent pipeline so the coder's history stays in step with the
+   * conversation the user actually had. Without it the coder never learns what
+   * was said on chat-only turns, nor what the user was finally told, and the two
+   * roles drift into remembering different conversations.
+   */
+  noteExchange(userText: string, assistantText: string): void {
+    if (userText.trim()) this.history.push({ role: "user", content: userText });
+    if (assistantText.trim()) this.history.push({ role: "assistant", content: assistantText });
+  }
+
+  /**
    * Run one user task to completion (multiple tool-use steps).
    * Returns the agent's final assistant text (used by the orchestrator).
    */
@@ -85,7 +136,9 @@ export class Agent {
     let outputTokens = 0;
     const summary = await this.project.summarize();
     const contextFile = await readContextFile(this.workspaceRoot);
-    const memoryBlock = [this.memory.render(), contextFile].filter(Boolean).join("\n\n");
+    const memoryBlock = [this.memory.render(), contextFile, this.sessionContext]
+      .filter(Boolean)
+      .join("\n\n");
 
     this.history.push({ role: "user", content: userMessage });
 
@@ -127,14 +180,34 @@ export class Agent {
           events.onAssistantText(response.text);
         }
 
+        // A model that could not produce a tool call for an edit may still have
+        // written the edit as a SEARCH/REPLACE block. Recover those and run them
+        // as ordinary tool calls — this is what keeps a weak local coder from
+        // "reading the file and changing nothing". Skipped in plan mode, where
+        // no change may happen at all.
+        let toolCalls = response.toolCalls;
+        if (!toolCalls.length && !planMode) {
+          const blocks = parseEditBlocks(response.text);
+          const recovered = editBlocksToToolCalls(blocks, this.lastFileRead);
+          if (recovered.length) {
+            events.onLog(
+              `✎ Recovered ${recovered.length} SEARCH/REPLACE edit${recovered.length > 1 ? "s" : ""} from the reply — applying as file edits.`
+            );
+            toolCalls = recovered;
+          } else if (blocks.length) {
+            // Blocks were written but no path was ever named or read.
+            events.onLog("⚠️ Found SEARCH/REPLACE blocks but no file to apply them to.");
+          }
+        }
+
         // Record the assistant turn (text + any tool calls).
         this.history.push({
           role: "assistant",
           content: response.text,
-          toolCalls: response.toolCalls,
+          toolCalls,
         });
 
-        if (!response.toolCalls.length) {
+        if (!toolCalls.length) {
           // The model announced a plan/next-step but never called a tool — a
           // stall our system prompt explicitly forbids. Nudge it to act instead
           // of ending the task with nothing done. Bounded so it can't loop
@@ -156,15 +229,37 @@ export class Agent {
 
         // Execute each requested tool and collect results for the next turn.
         const results: ToolResult[] = [];
-        for (const call of response.toolCalls) {
+        for (const call of toolCalls) {
           if (this.cancelled) break;
           events.onToolStart(call);
+          const targetPath = (call.input as Record<string, unknown>)?.path;
+          if (typeof targetPath === "string" && targetPath) this.lastFileRead = targetPath;
           const result = await this.executeTool(call, toolCtx, events);
           results.push({ callId: call.id, content: result.output, isError: result.isError });
           events.onToolEnd(call, { callId: call.id, content: result.output, isError: result.isError }, result.preview);
         }
+        // EVERY tool call must get a result back, even the ones a cancel skipped:
+        // an assistant turn whose tool_use blocks have no matching tool_result is
+        // rejected outright by the chat APIs, so a single Stop used to poison the
+        // conversation and make every later message fail.
+        for (const call of toolCalls.slice(results.length)) {
+          results.push({
+            callId: call.id,
+            content: "Not run — the user cancelled the task before this tool executed.",
+            isError: true,
+          });
+        }
 
         this.history.push({ role: "tool", toolResults: results });
+      }
+      if (!this.cancelled && this.history[this.history.length - 1]?.role === "tool") {
+        // We left the loop with a tool result as the last thing that happened,
+        // i.e. the step budget ran out mid-task. Say so — silently stopping
+        // looks identical to "finished", and the user is left waiting for a
+        // summary that is never coming.
+        events.onLog(
+          `⚠️ Stopped after the maximum of ${this.config.maxSteps} steps without finishing. Send "continue" to carry on, or raise waycode.maxAgentSteps.`
+        );
       }
       if (inputTokens || outputTokens) {
         events.onLog(`📊 Tokens — ${inputTokens} in / ${outputTokens} out`);
@@ -219,7 +314,9 @@ export class Agent {
 
   /** Clear the running conversation (start a fresh task thread). */
   reset(): void {
-    this.history.length = 0;
+    this.history = [];
+    this.sessionContext = "";
+    this.lastFileRead = undefined;
   }
 }
 

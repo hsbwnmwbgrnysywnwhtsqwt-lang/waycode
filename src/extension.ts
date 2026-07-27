@@ -4,15 +4,26 @@ import { openSettingsPanel } from "./ui/SettingsPanel";
 import { contextFilePath, CONTEXT_TEMPLATE } from "./context/contextFile";
 import { History } from "./memory/History";
 import { Memory } from "./memory/Memory";
-import { Config } from "./config";
+import { Config, AgentRole } from "./config";
 import { ProviderId, PROVIDER_META } from "./providers/ProviderFactory";
+import {
+  coderHardwareAdvice,
+  fetchOllamaModels,
+  fitIcon,
+  formatSpecs,
+  OllamaModelInfo,
+  RECOMMENDED_CODERS,
+} from "./providers/ollamaModels";
 import { toRelative } from "./tools/pathUtils";
 
 export function activate(context: vscode.ExtensionContext): void {
   const memory = new Memory(context.workspaceState);
   const config = new Config(context.secrets);
   const history = new History(context.globalState);
-  const controller = new ChatController(context.extensionUri, memory, config, history);
+  // Per-conversation context files live beside the extension's other state, so
+  // they survive reloads without adding noise to the user's repository.
+  const notesDir = vscode.Uri.joinPath(context.globalStorageUri, "conversations").fsPath;
+  const controller = new ChatController(context.extensionUri, memory, config, history, notesDir);
   const chat = new ChatViewProvider(controller);
 
   context.subscriptions.push(
@@ -33,6 +44,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
     vscode.commands.registerCommand("waycode.history", () => controller.openHistory()),
 
+    vscode.commands.registerCommand("waycode.openSessionContext", () =>
+      controller.openSessionContextFile()
+    ),
+
     vscode.commands.registerCommand("waycode.editContext", async () => {
       const folder = vscode.workspace.workspaceFolders?.[0];
       if (!folder) {
@@ -51,7 +66,8 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("waycode.newTask", async () => {
       await vscode.commands.executeCommand("waycode.chatView.focus");
       chat.reveal();
-      controller.notify("Started a new task.");
+      // Actually clear the thread — announcing it is not the same as doing it.
+      await controller.newTask();
     }),
 
     vscode.commands.registerCommand("waycode.addFileToContext", async (uri?: vscode.Uri) => {
@@ -193,7 +209,7 @@ async function configureRoles(config: Config, chat: ChatController): Promise<voi
     );
     if (!providerPick) return;
 
-    const model = await pickModel(config, providerPick.id, config.roleModel(role));
+    const model = await pickModel(config, providerPick.id, config.roleModel(role), role);
     if (model === undefined) return;
     await config.setRole(role, providerPick.id, model);
 
@@ -220,7 +236,8 @@ async function selectModel(config: Config, chat: ChatController): Promise<void> 
   if (!providerPick) return;
   await config.setProvider(providerPick.id);
 
-  const model = await pickModel(config, providerPick.id, config.model);
+  // The single agent does the editing itself, so it is held to the coder bar.
+  const model = await pickModel(config, providerPick.id, config.model, "coder");
   if (model) {
     await config.setModel(model);
   }
@@ -261,26 +278,17 @@ async function setApiKey(config: Config, preselected?: ProviderId): Promise<void
   }
 }
 
-/** Fetch the list of models installed in a local Ollama server. */
-async function fetchOllamaModels(baseUrl: string): Promise<string[]> {
-  try {
-    const res = await fetch(`${baseUrl}/api/tags`);
-    if (!res.ok) return [];
-    const data = (await res.json()) as { models?: Array<{ name?: string }> };
-    return (data.models ?? []).map((m) => m.name).filter((n): n is string => Boolean(n));
-  } catch {
-    return [];
-  }
-}
-
 /**
- * Pick a model id. For Ollama we offer the installed models directly (with a
- * "type manually" escape hatch); for other providers we fall back to text input.
+ * Pick a model id. For Ollama we scan the machine and show what is installed,
+ * annotated with size, parameter count, context window and — most usefully —
+ * whether the model can actually drive the tools. For other providers we fall
+ * back to text input.
  */
 async function pickModel(
   config: Config,
   providerId: ProviderId,
-  currentModel: string
+  currentModel: string,
+  role?: AgentRole
 ): Promise<string | undefined> {
   if (providerId === "ollama") {
     const models = await fetchOllamaModels(config.ollamaBaseUrl);
@@ -288,13 +296,32 @@ async function pickModel(
       const MANUAL = "✏️ Type a model name…";
       const pick = await vscode.window.showQuickPick(
         [
-          ...models.map((m) => ({ label: m, description: m === currentModel ? "current" : "" })),
-          { label: MANUAL, description: "" },
+          ...models.map((m) => ({
+            label: `${fitIcon(m.coderFit)}  ${m.name}`,
+            description: m.name === currentModel ? "current" : "",
+            detail: `${formatSpecs(m)}  —  ${m.note}`,
+            name: m.name,
+            info: m,
+          })),
+          { label: MANUAL, description: "", detail: "", name: MANUAL, info: undefined },
         ],
-        { title: "WayCode: Select an installed Ollama model" }
+        {
+          title:
+            role === "coder"
+              ? "WayCode: Ollama model for the CODER role (must be able to call tools)"
+              : "WayCode: Select an installed Ollama model",
+          matchOnDetail: true,
+        }
       );
       if (!pick) return undefined;
-      if (pick.label !== MANUAL) return pick.label;
+      if (pick.name !== MANUAL) {
+        if (pick.info && role === "coder") await warnIfPoorCoder(pick.info);
+        return pick.name;
+      }
+    } else {
+      vscode.window.showWarningMessage(
+        `WayCode: no Ollama models found at ${config.ollamaBaseUrl}. Is Ollama running? Type a model id manually, or run 'ollama pull <model>' first.`
+      );
     }
   }
   return vscode.window.showInputBox({
@@ -302,6 +329,37 @@ async function pickModel(
     value: currentModel || PROVIDER_META[providerId].defaultModel,
     prompt: "Enter the model id to use.",
   });
+}
+
+/**
+ * Tell the user up front when the model they picked cannot do the coder's job —
+ * a silent "nothing happened" run is far more confusing than this message.
+ */
+async function warnIfPoorCoder(m: OllamaModelInfo): Promise<void> {
+  if (m.coderFit === "good") return;
+  const detail = m.supportsTools
+    ? `${m.name} (${m.parameterSize ?? "small"}) is below the size where models reliably produce valid tool calls. Expect it to read files, describe a plan, and change nothing.`
+    : `${m.name} does not support tool calling at all, so it cannot read or edit files. It can only be the communicator.`;
+  const advice = coderHardwareAdvice();
+  const recommend = "Show stronger models";
+  const choice = await vscode.window.showWarningMessage(
+    `WayCode: ${detail}`,
+    recommend,
+    "Use anyway"
+  );
+  if (choice !== recommend) return;
+
+  const items = RECOMMENDED_CODERS.map((r) => ({
+    label: `$(rocket) ${r.name}`,
+    description: `~${r.downloadGB}GB download · needs ~${r.needsRamGB}GB RAM`,
+    detail: r.why,
+  }));
+  await vscode.window.showQuickPick(items, {
+    title: "WayCode: local models strong enough for the coder role",
+    placeHolder: advice ?? "Install one with:  ollama pull <name>",
+    matchOnDetail: true,
+  });
+  if (advice) vscode.window.showInformationMessage(`WayCode: ${advice}`);
 }
 
 export function deactivate(): void {

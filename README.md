@@ -197,6 +197,7 @@ hang the panel forever.
 | `WayCode: Add File to Context` | Pin a file (also in the Explorer context menu) |
 | `WayCode: Ask About Selection` | Select code → right-click → prefills the chat with it |
 | `WayCode: Edit Project Context File` | Create/open `WAYCODE.md` |
+| `WayCode: Open Conversation Context File` | Read what this conversation has recorded so far |
 
 ---
 
@@ -221,13 +222,18 @@ hang the panel forever.
 
 ## Project memory
 
-WayCode carries three kinds of memory into every request:
+WayCode carries four kinds of memory into every request:
 
 - **`WAYCODE.md`** — a per-project context file you own (also read from `.waycode.md` or
   `.waycode/context.md`). Put the stack, conventions, and build/test commands there; it's injected into
   every system prompt. Run `WayCode: Edit Project Context File` to scaffold it.
+- **Conversation context file** — one per chat, written automatically. Each turn appends what you
+  asked, the tools that *actually* ran, and the answer you were given. **Both** the communicator and
+  the coder read it at the start of every turn, so a conversation keeps its context across reloads,
+  history trimming, and reopening it from 🕘. Run `WayCode: Open Conversation Context File` to read it.
 - **Workspace memory** — pinned files, recorded decisions, and preferences, persisted per workspace.
-- **Conversation history** — past threads, saved globally and reopenable from 🕘.
+- **Conversation history** — past threads, saved globally and reopenable from 🕘. Loading one replays
+  it into the model, not just onto the screen.
 
 ---
 
@@ -261,7 +267,7 @@ src/
 ├─ providers/            Anthropic · OpenAI · Ollama · Claude CLI (one interface)
 ├─ tools/                file · search · command tools, diffs, path safety
 ├─ context/              project snapshot + WAYCODE.md
-├─ memory/               workspace memory + conversation history
+├─ memory/               workspace memory · conversation history · per-chat context file
 ├─ ui/                   chat webview + settings panel
 └─ test/                 node:test suite
 ```

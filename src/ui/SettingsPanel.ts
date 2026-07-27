@@ -1,6 +1,13 @@
 import * as vscode from "vscode";
 import { Config, AgentRole } from "../config";
 import { PROVIDER_META, ProviderId } from "../providers/ProviderFactory";
+import {
+  coderHardwareAdvice,
+  fetchOllamaModels,
+  fitIcon,
+  formatSpecs,
+  RECOMMENDED_CODERS,
+} from "../providers/ollamaModels";
 
 const LANGUAGES = [
   "auto",
@@ -101,7 +108,23 @@ async function collect(config: Config) {
     },
     ollamaBaseUrl: config.ollamaBaseUrl,
     openaiBaseUrl: config.openaiBaseUrl,
-    ollamaModels: await fetchOllamaModels(config.ollamaBaseUrl),
+    // The scan of this machine: every installed model, with a readable label and
+    // an explicit verdict on whether it can drive the tools as the coder.
+    ollamaModels: (await fetchOllamaModels(config.ollamaBaseUrl)).map((m) => ({
+      name: m.name,
+      label: `${fitIcon(m.coderFit)} ${m.name} — ${formatSpecs(m)}`,
+      note: m.note,
+      coderFit: m.coderFit,
+      supportsTools: m.supportsTools,
+    })),
+    // Shown under the coder's model field: what to install if nothing installed
+    // is strong enough, and whether this machine can even host it.
+    recommendedCoders: RECOMMENDED_CODERS.map((r) => ({
+      name: r.name,
+      requirement: `~${r.downloadGB}GB download · needs ~${r.needsRamGB}GB RAM`,
+      why: r.why,
+    })),
+    coderHardwareAdvice: coderHardwareAdvice(),
     keys,
   };
 }
@@ -122,17 +145,6 @@ async function save(config: Config, data: any): Promise<void> {
   });
   await config.setOllamaBaseUrl(String(data.ollamaBaseUrl ?? "").trim());
   await config.setOpenaiBaseUrl(String(data.openaiBaseUrl ?? "").trim());
-}
-
-async function fetchOllamaModels(baseUrl: string): Promise<string[]> {
-  try {
-    const res = await fetch(`${baseUrl}/api/tags`);
-    if (!res.ok) return [];
-    const data = (await res.json()) as { models?: Array<{ name?: string }> };
-    return (data.models ?? []).map((m) => m.name).filter((n): n is string => Boolean(n));
-  } catch {
-    return [];
-  }
 }
 
 function html(webview: vscode.Webview, extensionUri: vscode.Uri): string {
