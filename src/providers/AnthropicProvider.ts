@@ -91,7 +91,17 @@ export class AnthropicProvider implements AIProvider {
     const out: any[] = [];
     for (const m of messages) {
       if (m.role === "user") {
-        out.push({ role: "user", content: m.content ?? "" });
+        if (m.images?.length) {
+          // Anthropic takes images as content blocks alongside the text.
+          const blocks: any[] = m.images.map((img) => ({
+            type: "image",
+            source: { type: "base64", media_type: img.mediaType, data: img.base64 },
+          }));
+          if (m.content) blocks.push({ type: "text", text: m.content });
+          out.push({ role: "user", content: blocks });
+        } else {
+          out.push({ role: "user", content: m.content ?? "" });
+        }
       } else if (m.role === "assistant") {
         const content: any[] = [];
         if (m.content) {

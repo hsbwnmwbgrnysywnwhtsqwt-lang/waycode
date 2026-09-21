@@ -6,6 +6,7 @@ import {
   numbered,
   isImage,
   isBinary,
+  mediaTypeFor,
 } from "../ui/attachments";
 
 test("a pasted name can never escape the uploads directory", () => {
@@ -62,4 +63,12 @@ test("images and binaries are recognised so they are not inlined as text", () =>
     assert.ok(!isBinary(n), n);
     assert.ok(!isImage(n), n);
   }
+});
+
+test("image MIME types are mapped for the provider's image block", () => {
+  assert.equal(mediaTypeFor("a.png"), "image/png");
+  assert.equal(mediaTypeFor("a.JPG"), "image/jpeg");
+  assert.equal(mediaTypeFor("a.jpeg"), "image/jpeg");
+  assert.equal(mediaTypeFor("a.webp"), "image/webp");
+  assert.equal(mediaTypeFor("a.unknown"), "image/png");
 });

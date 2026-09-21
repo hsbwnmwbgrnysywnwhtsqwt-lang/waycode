@@ -1,4 +1,4 @@
-import { AIProvider, ChatMessage } from "../providers/types";
+import { AIProvider, ChatMessage, ImageAttachment } from "../providers/types";
 import { ToolRegistry } from "../tools/ToolRegistry";
 import { ProjectContext } from "../context/ProjectContext";
 import { Memory } from "../memory/Memory";
@@ -91,7 +91,11 @@ export class Orchestrator {
   /** Kept so a coder built later in the conversation still gets the backlog. */
   private restored?: RestoredMessage[];
 
-  async run(userMessage: string, events: AgentEvents): Promise<void> {
+  async run(
+    userMessage: string,
+    events: AgentEvents,
+    images?: ImageAttachment[]
+  ): Promise<void> {
     this.cancelled = false;
     try {
       const summary = await this.project.summarize();
@@ -102,12 +106,13 @@ export class Orchestrator {
       events.onPhase?.("communicator-in", "🗣️ Language bot is reading your message…");
       const routeResponse = await this.communicator.provider.complete({
         system: buildCommunicatorInPrompt(summary, this.config.language, this.sessionContext),
-        messages: [...priorHistory, { role: "user", content: userMessage }],
+        messages: [...priorHistory, { role: "user", content: userMessage, images }],
         tools: [],
         model: this.communicator.model,
         temperature: 0.2,
         maxTokens: 1200,
       });
+      for (const warning of routeResponse.warnings ?? []) events.onLog(`⚠️ ${warning}`);
       const route = classifyRoute(routeResponse.text, userMessage);
 
       // CHAT: the language bot answers directly — no coder involved.
@@ -145,14 +150,20 @@ export class Orchestrator {
           this.tools,
           this.project,
           this.memory,
-          { ...this.config, model: this.coder.model },
+          // The coder ALWAYS works in English, whatever the user's reply
+          // language. Spreading the config unchanged told it "always reply in
+          // Hebrew" — the exact thing this prompt warns the communicator about —
+          // and a small code model spends its whole budget failing at that: the
+          // observed output degenerated into mixed Hebrew/Arabic and it stopped
+          // calling tools entirely. Translating back is the communicator's job.
+          { ...this.config, model: this.coder.model, language: "English" },
           this.workspaceRoot
         );
         // A conversation restored before the coder existed still reaches it.
         if (this.restored) this.currentCoder.restore(this.restored);
         this.currentCoder.setSessionContext(this.sessionContext);
       }
-      let coderSummary = await this.currentCoder.run(spec, coderEvents);
+      let coderSummary = await this.currentCoder.run(spec, coderEvents, images);
 
       // Stop means stop. Every nudge below calls Agent.run again, which clears
       // the agent's own cancelled flag — so without this the user pressing Stop
@@ -225,6 +236,7 @@ export class Orchestrator {
         temperature: 0.2,
         maxTokens: 1500,
       });
+      for (const warning of explainResponse.warnings ?? []) events.onLog(`⚠️ ${warning}`);
       const explanation = explainResponse.text.trim() || coderSummary || "Done.";
       events.onAssistantText(explanation);
       // Only the real exchange enters history — not the internal spec/ground-truth.

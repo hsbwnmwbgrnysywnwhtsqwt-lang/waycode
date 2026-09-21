@@ -6,7 +6,8 @@ import {
   ProviderCredentials,
   ToolCall,
 } from "./types";
-import { postJson, readError } from "./http";
+import { postJsonLines } from "./http";
+import { chooseContextWindow, fetchModelGeometry, stickyWindow } from "./ollamaContext";
 
 /**
  * Local models via Ollama's chat API.
@@ -23,11 +24,39 @@ export class OllamaProvider implements AIProvider {
   async complete(req: CompletionRequest): Promise<CompletionResponse> {
     const base = this.creds.baseUrl ?? "http://localhost:11434";
 
+    const messages = this.toOllamaMessages(req.system, req.messages);
+
+    // num_ctx MUST be set. Ollama's default context is ~4k tokens, and it
+    // silently truncates anything longer — so an agent prompt (system rules +
+    // project tree + an attached file + 15 tool schemas + history) arrives with
+    // most of itself missing, frequently including the tool definitions. That is
+    // invisible from the outside and looks exactly like a model that "ignores
+    // its tools", "cannot find a file that is right there", or repeats itself.
+    //
+    // It must not be set to the largest window that fits the prompt either: past
+    // what the machine can hold, the KV cache pushes the model off the GPU and
+    // inference collapses to a few seconds per token. See ollamaContext.ts.
+    const geometry = await fetchModelGeometry(base, req.model);
+    const choice = chooseContextWindow({
+      needed: this.neededTokens(messages, req.tools.length),
+      geometry,
+      pinned: Number(this.creds.contextTokens) || undefined,
+    });
+    const numCtx = stickyWindow(`${base}::${req.model}`, choice.tokens);
+
+    const options: Record<string, unknown> = {
+      temperature: req.temperature ?? 0,
+      num_ctx: numCtx,
+    };
+
     const body: any = {
+      // Streaming is not about showing tokens as they land — it is what makes
+      // the request survivable. A non-streamed call has to finish inside one
+      // wall-clock deadline; a streamed one only has to keep making progress.
       model: req.model,
-      stream: false,
-      options: { temperature: req.temperature ?? 0 },
-      messages: this.toOllamaMessages(req.system, req.messages),
+      stream: true,
+      options,
+      messages,
     };
     if (req.tools.length) {
       body.tools = req.tools.map((t) => ({
@@ -40,16 +69,10 @@ export class OllamaProvider implements AIProvider {
       }));
     }
 
-    const res = await postJson(`${base}/api/chat`, {}, body);
+    const data = await this.readStream(`${base}/api/chat`, body);
 
-    if (!res.ok) {
-      throw new Error(`Ollama error ${res.status}: ${await readError(res)}`);
-    }
-
-    const data: any = await res.json();
-    const msg = data.message ?? {};
-    let text: string = msg.content ?? "";
-    let toolCalls: ToolCall[] = (msg.tool_calls ?? []).map((tc: any, i: number) => ({
+    let text: string = data.content;
+    let toolCalls: ToolCall[] = data.toolCalls.map((tc: any, i: number) => ({
       id: `ollama-${Date.now()}-${i}`,
       name: tc.function?.name,
       input: normalizeArgs(tc.function?.arguments),
@@ -71,18 +94,68 @@ export class OllamaProvider implements AIProvider {
       toolCalls,
       stopReason: toolCalls.length ? "tool_use" : "end",
       usage: {
-        inputTokens: data.prompt_eval_count,
-        outputTokens: data.eval_count,
+        inputTokens: data.promptEvalCount,
+        outputTokens: data.evalCount,
       },
+      warnings: choice.warning ? [choice.warning] : undefined,
     };
   }
 
+  /**
+   * Consume Ollama's NDJSON stream into one assembled reply.
+   *
+   * Content arrives a fragment at a time; tool calls arrive whole, on whichever
+   * chunk the model finished them. The final object (`done: true`) carries the
+   * token counts and nothing else worth keeping.
+   */
+  private async readStream(
+    url: string,
+    body: unknown
+  ): Promise<{ content: string; toolCalls: any[]; promptEvalCount?: number; evalCount?: number }> {
+    let content = "";
+    const toolCalls: any[] = [];
+    let promptEvalCount: number | undefined;
+    let evalCount: number | undefined;
+
+    await postJsonLines(url, {}, body, (value) => {
+      const chunk = value as any;
+      if (chunk?.error) throw new Error(`Ollama error: ${chunk.error}`);
+      const msg = chunk?.message;
+      if (msg?.content) content += msg.content;
+      if (Array.isArray(msg?.tool_calls)) toolCalls.push(...msg.tool_calls);
+      if (chunk?.done) {
+        promptEvalCount = chunk.prompt_eval_count;
+        evalCount = chunk.eval_count;
+      }
+    });
+
+    return { content, toolCalls, promptEvalCount, evalCount };
+  }
+
   // (message conversion below)
+  /**
+   * Estimate the tokens this request needs, reply included.
+   *
+   * Only an estimate is possible without running the tokenizer, and it only has
+   * to be good enough to pick between a handful of window sizes.
+   */
+  private neededTokens(messages: Array<{ content?: string }>, toolCount: number): number {
+    const chars = messages.reduce((n, m) => n + (m.content?.length ?? 0), 0);
+    // ~3.5 chars/token is a safe estimate across English, Hebrew and code, plus
+    // roughly 220 tokens per tool schema, plus room for the reply.
+    return Math.ceil(chars / 3.5) + toolCount * 220 + 1500;
+  }
+
   private toOllamaMessages(system: string, messages: ChatMessage[]): any[] {
     const out: any[] = [{ role: "system", content: system }];
     for (const m of messages) {
       if (m.role === "user") {
-        out.push({ role: "user", content: m.content ?? "" });
+        // Ollama vision models take a plain array of base64 images.
+        out.push(
+          m.images?.length
+            ? { role: "user", content: m.content ?? "", images: m.images.map((i) => i.base64) }
+            : { role: "user", content: m.content ?? "" }
+        );
       } else if (m.role === "assistant") {
         const entry: any = { role: "assistant", content: m.content ?? "" };
         if (m.toolCalls?.length) {

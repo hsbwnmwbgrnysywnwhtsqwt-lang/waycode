@@ -28,10 +28,22 @@ export interface ToolResult {
   isError?: boolean;
 }
 
+/** An image attached to a user turn, for providers that can see pictures. */
+export interface ImageAttachment {
+  /** e.g. "image/png" */
+  mediaType: string;
+  /** Raw base64, no data: prefix. */
+  base64: string;
+  /** Workspace-relative path, so the model can also act on the file. */
+  path?: string;
+}
+
 export interface ChatMessage {
   role: Role;
   /** Free text content. */
   content?: string;
+  /** Images attached to a user turn. Ignored by providers without vision. */
+  images?: ImageAttachment[];
   /** Present on assistant turns that requested tools. */
   toolCalls?: ToolCall[];
   /** Present on tool-role turns that carry results. */
@@ -53,6 +65,12 @@ export interface CompletionResponse {
   toolCalls: ToolCall[];
   stopReason: "end" | "tool_use" | "max_tokens" | "other";
   usage?: { inputTokens?: number; outputTokens?: number };
+  /**
+   * Problems with the request itself that the user needs to know about — most
+   * importantly a prompt too large for the context window, which the backend
+   * would otherwise truncate in silence.
+   */
+  warnings?: string[];
 }
 
 /** Every AI backend implements this single interface. */
@@ -67,4 +85,9 @@ export interface AIProvider {
 export interface ProviderCredentials {
   apiKey?: string;
   baseUrl?: string;
+  /**
+   * Ollama only: pin num_ctx instead of sizing it from the request. Useful when
+   * a machine cannot spare the memory a large window reserves.
+   */
+  contextTokens?: number;
 }

@@ -40,6 +40,7 @@ ${planBlock}
 - For a big file, read_file with offset/limit gives you a numbered slice — use it instead of pulling in hundreds of lines you do not need.
 - If a search still finds nothing, DO NOT conclude the feature is absent. Look at the "Project structure" tree in this prompt and read the files whose names look relevant (e.g. a file named like *gemini*, *ai*, *provider*), then search for the real identifiers you discover inside them.
 - The task's "Search terms" are in English on purpose — search for those English identifiers, never for a transliterated or non-English word.
+- NEVER pass non-English text to search_code. Source code and markup are written in English identifiers and class names; searching for a Hebrew or Arabic phrase finds nothing and tells you nothing. If the thing you want is described in another language, search for the English structure around it (e.g. the CSS class, the tag, the file name) and read the file to find it.
 - NEVER ask the user to "make sure the file exists" or to confirm the project's structure. You have list_files and read_file — check it yourself. If a file the task names does not exist, say so plainly and, when the task is to add something to it, CREATE it rather than handing the turn back.
 - A search that returns nothing is not a reason to stop. Run list_files on the relevant directory first, and only then report — with the actual listing as evidence.
 - Prefer small, targeted edits (edit_file) over rewriting whole files.

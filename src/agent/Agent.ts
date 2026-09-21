@@ -1,6 +1,7 @@
 import {
   AIProvider,
   ChatMessage,
+  ImageAttachment,
   ToolCall,
   ToolResult,
 } from "../providers/types";
@@ -129,7 +130,11 @@ export class Agent {
    * Run one user task to completion (multiple tool-use steps).
    * Returns the agent's final assistant text (used by the orchestrator).
    */
-  async run(userMessage: string, events: AgentEvents): Promise<string> {
+  async run(
+    userMessage: string,
+    events: AgentEvents,
+    images?: ImageAttachment[]
+  ): Promise<string> {
     this.cancelled = false;
     let finalText = "";
     let inputTokens = 0;
@@ -140,7 +145,7 @@ export class Agent {
       .filter(Boolean)
       .join("\n\n");
 
-    this.history.push({ role: "user", content: userMessage });
+    this.history.push({ role: "user", content: userMessage, images });
 
     const toolCtx: ToolContext = {
       workspaceRoot: this.workspaceRoot,
@@ -150,6 +155,8 @@ export class Agent {
 
     let stallNudges = 0;
     const MAX_STALL_NUDGES = 2;
+    /** The previous turn's text, to catch a model repeating itself verbatim. */
+    let lastReply = "";
 
     try {
       for (let step = 0; step < this.config.maxSteps; step++) {
@@ -174,6 +181,10 @@ export class Agent {
 
         inputTokens += response.usage?.inputTokens ?? 0;
         outputTokens += response.usage?.outputTokens ?? 0;
+
+        for (const warning of response.warnings ?? []) {
+          events.onLog(`⚠️ ${warning}`);
+        }
 
         if (response.text.trim()) {
           finalText = response.text;
@@ -214,6 +225,16 @@ export class Agent {
           // forever. Deliberately NOT gated on "has this run used a tool yet":
           // the commonest stall of all is searching, announcing the edit, and
           // stopping — the read must not buy the model an early exit.
+          // A model that answers the nudge with the SAME sentence it just gave is
+          // not thinking about it — it is stuck. Nudging again only burns steps
+          // and tokens (observed: five identical replies across two rounds), so
+          // stop and let the caller report honestly that nothing happened.
+          if (isRepeat(response.text, lastReply)) {
+            events.onLog("↩︎ The model repeated itself verbatim — it is stuck, so stopping instead of nudging again.");
+            break;
+          }
+          lastReply = response.text;
+
           if (!planMode && stallNudges < MAX_STALL_NUDGES && looksLikeStall(response.text)) {
             stallNudges++;
             events.onLog(`↻ Announced an action but called no tool — nudging the model to act (${stallNudges}/${MAX_STALL_NUDGES}).`);
@@ -318,6 +339,17 @@ export class Agent {
     this.sessionContext = "";
     this.lastFileRead = undefined;
   }
+}
+
+/**
+ * Is this reply the same as the previous one? Compared on collapsed whitespace
+ * so trivial reformatting does not read as new thinking. Short replies are
+ * exempt: "Done." twice in a row is legitimate.
+ */
+export function isRepeat(current: string, previous: string): boolean {
+  const norm = (s: string) => (s || "").replace(/\s+/g, " ").trim().toLowerCase();
+  const a = norm(current);
+  return a.length > 40 && a === norm(previous);
 }
 
 /**

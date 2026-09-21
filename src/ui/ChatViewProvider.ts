@@ -9,6 +9,7 @@ import { Memory } from "../memory/Memory";
 import { Config, AgentRole } from "../config";
 import { createProvider, PROVIDER_META, ProviderId } from "../providers/ProviderFactory";
 import { ToolPreview } from "../tools/Tool";
+import { ImageAttachment } from "../providers/types";
 import { safeResolve, toRelative } from "../tools/pathUtils";
 import { History, Session } from "../memory/History";
 import { NOTES_HEADER, SessionNotes } from "../memory/SessionNotes";
@@ -20,6 +21,8 @@ import {
   numbered,
   sanitizeFileName,
   UPLOAD_DIR,
+  MAX_IMAGE_BYTES,
+  mediaTypeFor,
 } from "./attachments";
 
 /** Anything the chat can drive: a single Agent or the multi-agent Orchestrator. */
@@ -30,7 +33,7 @@ interface Runner {
   restore(messages: RestoredMessage[]): void;
   /** The conversation's context file, refreshed before every turn. */
   setSessionContext(text: string): void;
-  run(userMessage: string, events: AgentEvents): Promise<unknown>;
+  run(userMessage: string, events: AgentEvents, images?: ImageAttachment[]): Promise<unknown>;
 }
 
 /**
@@ -332,6 +335,7 @@ export class ChatController {
     const root = folder.uri.fsPath;
     // Inject any attached files' contents into the message the model sees.
     const contextBlock = await this.readContext(root, context);
+    const images = await this.readImages(root, context);
     const modelText = contextBlock ? `${contextBlock}\n\n---\n\n${text}` : text;
 
     // Pick up approval changes made via the Command Palette (plan mode is UI-only).
@@ -411,7 +415,7 @@ export class ChatController {
     this.running = true;
     this.cancelRequested = false;
     try {
-      await this.runner.run(modelText, events);
+      await this.runner.run(modelText, events, images);
     } catch (err) {
       // The runners handle their own errors, so this is the unexpected kind —
       // it must still clear the UI's running state, or the chat stays stuck on
@@ -556,6 +560,35 @@ export class ChatController {
   /** Public entry for the History command. */
   openHistory(): void {
     void this.showHistory();
+  }
+
+  /**
+   * Load attached images as base64 so a vision-capable model can actually see
+   * them, rather than only being told a picture exists at a path. Providers
+   * without vision ignore the field, so this is safe to always populate.
+   */
+  private async readImages(root: string, context: string[]): Promise<ImageAttachment[]> {
+    const out: ImageAttachment[] = [];
+    for (const rel of context) {
+      if (!isImage(rel) || rel.toLowerCase().endsWith(".svg")) continue;
+      try {
+        const bytes = await fs.readFile(safeResolve(root, rel));
+        if (bytes.length > MAX_IMAGE_BYTES) {
+          this.post({
+            type: "log",
+            text: `🖼️ ${rel} is too large to send to the model (${Math.round(bytes.length / 1e6)} MB); it is still on disk for the tools.`,
+          });
+          continue;
+        }
+        out.push({ mediaType: mediaTypeFor(rel), base64: bytes.toString("base64"), path: rel });
+      } catch {
+        /* unreadable — the context block already names it */
+      }
+    }
+    if (out.length) {
+      this.post({ type: "log", text: `👁️ Sending ${out.length} image(s) to the model.` });
+    }
+    return out;
   }
 
   /** Read attached files and format them as a context block for the model. */

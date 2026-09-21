@@ -276,3 +276,30 @@ test("a chat-only turn still reaches the coder, so the roles share one conversat
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+test("the coder is instructed in English even when the user replies in Hebrew", async () => {
+  const dir = await tmp();
+  try {
+    const comm = scripted("comm", ["CODE: Goal: remove a card.", "הוסבר"]);
+    const coder = scripted("coder", ["done"]);
+    const orch = new Orchestrator(
+      { provider: comm.provider, model: "c" },
+      { provider: coder.provider, model: "d" },
+      ToolRegistry.default(),
+      new ProjectContext(dir),
+      fakeMemory(),
+      // The user wants Hebrew replies…
+      { model: "d", maxSteps: 2, language: "Hebrew", policy: POLICY },
+      dir
+    );
+
+    await orch.run("תמחק את הכרטיס", noopEvents());
+
+    // …the communicator obeys that, but the coder must be told English.
+    assert.match(comm.calls[0].system, /reply to the user in Hebrew/i);
+    assert.match(coder.calls[0].system, /reply to the user in English/i);
+    assert.doesNotMatch(coder.calls[0].system, /reply to the user in Hebrew/i);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});

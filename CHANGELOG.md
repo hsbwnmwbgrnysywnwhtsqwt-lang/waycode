@@ -2,9 +2,47 @@
 
 All notable changes to WayCode are documented here.
 
+## [Unreleased]
+
+### Fixed
+- **Local models no longer time out because the context window was too big for
+  the machine.** Asked to delete one card from an attached HTML page, the coder
+  ran its search and then died on `Request timed out after 300s`. Nothing was
+  broken: `num_ctx` was sized from the size of the prompt alone, the attachment
+  pushed it to 32768, and on a 16GB M2 a 6GB KV cache plus 9GB of weights no
+  longer fits on the GPU. Measured on that machine with qwen2.5-coder:14b —
+  8192: 7.9 tok/s, 16384: 8.4 tok/s, 32768: **0.12 tok/s**, about 8 seconds per
+  token. The request was never hung, just 70× too slow to finish.
+
+  `num_ctx` is now the smallest of what the request needs, what the model was
+  trained for, and what this machine can hold alongside the weights — computed
+  from the model's real KV geometry (layers × KV heads × head width), read from
+  Ollama. A window is never requested that the hardware cannot fill.
+
+- **Ollama no longer reloads the model between turns.** The window used to grow
+  with the conversation (8k → 16k → 32k), and every change made Ollama unload
+  and reload the model — 63 seconds of dead air, before a single token. The
+  window now holds its high-water mark for the session.
+
+- **Requests are streamed, so a slow model is not killed for being slow.** The
+  old 300s cap was a wall-clock deadline on the whole reply. The limit is now
+  silence rather than duration, with a separate and much longer allowance for
+  the first token, since a local model sends nothing at all while it loads and
+  reads the prompt — measured at 695s for a 14k-token prompt.
+
+- **A prompt too large for the window is now reported, not silently truncated.**
+  Ollama drops the overflow without a word, which usually takes the tool
+  definitions with it — the model then "ignores its tools" for no visible
+  reason. WayCode now says so, and says what to do about it.
+
 ## [1.0.2]
 
 ### Added
+- **The model can see images.** Attached or pasted pictures are sent as real
+  image content to Anthropic, OpenAI and Ollama vision models, not just named as
+  a path. SVG stays text (it is editable XML) and oversized images are skipped
+  with a note rather than failing the request.
+
 - **`copy_file` — duplicating a file no longer goes through the model.** Asked to
   "make index.html again as indxxx.html", the coder read the 495-line page and
   then *re-created* it from memory, producing a 284-byte placeholder that shared
@@ -61,6 +99,20 @@ All notable changes to WayCode are documented here.
   old conversation. Open it with *WayCode: Open Conversation Context File*.
 
 ### Fixed
+- **The coder was being told to answer in Hebrew.** The multi-agent config was
+  copied to the coder unchanged, so a code model was ordered to reply in the
+  user's language — the exact thing the communicator's own prompt warns about.
+  A 14B coder handed that instruction degenerated into mixed Hebrew/Arabic
+  ("אני אסרח الآن") and stopped calling tools altogether. The coder now always
+  works in English; translating back is the communicator's job.
+- **A stuck model is no longer nudged in circles.** When a reply comes back
+  word-for-word identical to the previous one, the model is not reconsidering —
+  it is stuck. The loop now stops and reports honestly instead of burning five
+  more rounds on the same sentence.
+- **Searching for Hebrew text is now forbidden in the prompt.** The coder was
+  grepping for a Hebrew phrase that could not appear in HTML markup, finding
+  nothing, and concluding the feature was absent.
+
 - **Reopening a saved conversation no longer loses its context** — loading a
   thread from the history repainted the chat but left the *model* with an empty
   history, so the bots had no idea what had been discussed. The conversation is

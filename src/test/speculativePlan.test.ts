@@ -34,10 +34,26 @@ function reqWith(tools: ToolSchema[]): CompletionRequest {
 }
 
 function mockContent(content: string): void {
-  globalThis.fetch = (async () => ({
-    ok: true,
-    json: async () => ({ message: { role: "assistant", content } }),
-  })) as unknown as typeof fetch;
+  const encoder = new TextEncoder();
+  globalThis.fetch = (async (url: string) => {
+    // The provider probes the model's shape before every request; these tests
+    // care only about the reply, so report nothing and let it size by request.
+    const target = String(url);
+    if (target.endsWith("/api/show") || target.endsWith("/api/tags")) {
+      return { ok: true, status: 200, json: async () => ({}) };
+    }
+    return {
+      ok: true,
+      status: 200,
+      body: new ReadableStream({
+        start(controller) {
+          const lines = [{ message: { role: "assistant", content } }, { done: true }];
+          for (const l of lines) controller.enqueue(encoder.encode(JSON.stringify(l) + "\n"));
+          controller.close();
+        },
+      }),
+    };
+  }) as unknown as typeof fetch;
 }
 
 /** Verbatim shape of the response that caused the incident. */

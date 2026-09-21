@@ -288,6 +288,11 @@
           "type": "string",
           "default": "",
           "description": "Model id for the coder role. Empty = the provider's default model. Pick a model strong at code (e.g. qwen2.5-coder), it need not speak your language."
+        },
+        "waycode.ollama.contextTokens": {
+          "type": "number",
+          "default": 0,
+          "description": "Ollama context window (num_ctx). 0 sizes it automatically from each request — recommended. Ollama's own default is only ~4k tokens and silently truncates longer prompts, which makes the agent lose its tools and project context. Set a fixed value only if a large window exhausts your machine's memory."
         }
       }
     }

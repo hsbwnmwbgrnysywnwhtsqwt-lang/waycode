@@ -70,3 +70,39 @@ test("a tool-free call omits `tools` entirely", async () => {
 
   assert.ok(!("tools" in body), "tools must be absent, not []");
 });
+
+test("an attached image is sent as a content block the model can see", async () => {
+  const calls: any[] = [];
+  const provider = new AnthropicProvider({ apiKey: "k" });
+  (globalThis as any).fetch = async (_u: string, init: any) => {
+    calls.push(JSON.parse(init.body));
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return { content: [{ type: "text", text: "I see it." }], stop_reason: "end_turn" };
+      },
+    } as any;
+  };
+
+  await provider.complete({
+    system: "s",
+    messages: [
+      {
+        role: "user",
+        content: "what is in this screenshot?",
+        images: [{ mediaType: "image/png", base64: "AAAA" }],
+      },
+    ],
+    tools: [],
+    model: "claude-sonnet-4-5",
+  });
+
+  const sent = calls[0].messages[0].content;
+  assert.ok(Array.isArray(sent), "an image turn must use content blocks");
+  const image = sent.find((b: any) => b.type === "image");
+  assert.ok(image, "the image block must be present");
+  assert.equal(image.source.media_type, "image/png");
+  assert.equal(image.source.data, "AAAA");
+  assert.ok(sent.some((b: any) => b.type === "text"), "the question must travel with it");
+});

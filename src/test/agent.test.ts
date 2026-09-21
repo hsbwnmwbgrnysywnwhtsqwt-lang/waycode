@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
-import { Agent, AgentEvents } from "../agent/Agent";
+import { Agent, AgentEvents, isRepeat } from "../agent/Agent";
 import { ToolRegistry } from "../tools/ToolRegistry";
 import { ProjectContext } from "../context/ProjectContext";
 import { Memory } from "../memory/Memory";
@@ -86,4 +86,17 @@ test("plan mode hides write tools from the model and refuses changes", async () 
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }
+});
+
+test("a model repeating itself verbatim is detected as stuck", () => {
+  const stuck =
+    "אני מצטער על הטעות. אני אבדוק עכשיו בקבצים אחרים שיכולים להכיל את הרשימה של הפרויקטים.";
+  assert.equal(isRepeat(stuck, stuck), true);
+  // Whitespace-only differences are still the same reply.
+  assert.equal(isRepeat(stuck + "\n\n", "  " + stuck), true);
+  // Genuinely different work is not a repeat.
+  assert.equal(isRepeat(stuck, stuck + " Now searching src/."), false);
+  // Short confirmations may legitimately repeat.
+  assert.equal(isRepeat("Done.", "Done."), false);
+  assert.equal(isRepeat("", ""), false);
 });

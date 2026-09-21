@@ -101,6 +101,15 @@ export class Config {
       .update("multiAgent.enabled", enabled, vscode.ConfigurationTarget.Global);
   }
 
+  /** 0 = size the context window from each request (recommended). */
+  get ollamaContextTokens(): number {
+    return (
+      Number(
+        vscode.workspace.getConfiguration("waycode").get<number>("ollama.contextTokens", 0)
+      ) || 0
+    );
+  }
+
   get ollamaBaseUrl(): string {
     return vscode.workspace.getConfiguration("waycode").get<string>("ollama.baseUrl", "http://localhost:11434");
   }
@@ -149,6 +158,7 @@ export class Config {
     }
     if (id === "ollama") {
       creds.baseUrl = this.ollamaBaseUrl;
+      creds.contextTokens = this.ollamaContextTokens;
     }
     if (id === "openai" && this.openaiBaseUrl) {
       creds.baseUrl = this.openaiBaseUrl;

@@ -53,3 +53,21 @@ const BINARY_EXTENSIONS =
 export function isBinary(name: string): boolean {
   return BINARY_EXTENSIONS.test(name);
 }
+
+/** Vision APIs reject oversized payloads; keep what we send well inside limits. */
+export const MAX_IMAGE_BYTES = 5_000_000;
+
+/** MIME type for an image path, for the provider's image block. */
+export function mediaTypeFor(name: string): string {
+  const ext = name.slice(name.lastIndexOf(".") + 1).toLowerCase();
+  const map: Record<string, string> = {
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    gif: "image/gif",
+    webp: "image/webp",
+    bmp: "image/bmp",
+    avif: "image/avif",
+  };
+  return map[ext] ?? "image/png";
+}
